@@ -131,79 +131,102 @@ int main() {
     std::cout << "[PROXY] Запущен на порту " << LISTEN_PORT
               << ", бэкенд: " << BACKEND_IP << ":" << BACKEND_PORT << std::endl;
 
-    char buf[MAX_PACKET_SIZE];
-    while (running) {
-        client_len = sizeof(client_addr);
-        ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
-                             (struct sockaddr*)&client_addr, &client_len);
+  char buf[MAX_PACKET_SIZE];
+while (running) {
+    client_len = sizeof(client_addr);
+    ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
+                         (struct sockaddr*)&client_addr, &client_len);
 
-        if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                usleep(1000);
-                continue;
-            }
-            std::cerr << "recvfrom failed: " << strerror(errno) << std::endl;
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            usleep(1000);
             continue;
         }
-
-        if (n < 12) { // Слишком маленький пакет
-            continue;
-        }
-
-        // === Проверка: это Initial Packet? ===
-        // Первый байт должен иметь маску 0xC0 для Initial
-        uint8_t packet_type = buf[0];
-        if ((packet_type & 0xC0) != 0xC0) {
-            continue; // Не Initial — пропускаем
-        }
-
-        // Извлекаем длины DCID и SCID
-        uint8_t dcid_len = buf[1];
-        if (dcid_len < 1 || dcid_len > 20) continue;
-
-        size_t offset = 2 + dcid_len;
-        if (offset + 1 >= (size_t)n) continue;
-
-        uint8_t scid_len = buf[offset];
-        offset += 1;
-        if (scid_len < 8 || offset + scid_len > (size_t)n) continue;
-
-        uint8_t* scid = (uint8_t*)&buf[offset];
-
-        // === Формируем ключ сессии ===
-        ClientKey key;
-        key.addr = client_addr.sin_addr.s_addr;
-        key.port = client_addr.sin_port;
-        memcpy(key.cid, scid, 8);
-
-        // === Получаем или генерируем локальный CID ===
-        auto it = session_map.find(key);
-        std::vector<uint8_t> local_cid;
-        if (it == session_map.end()) {
-            local_cid = generate_local_cid();
-            session_map[key] = local_cid;
-            std::cout << "[PROXY] Новая сессия: "
-                      << inet_ntoa(client_addr.sin_addr) << ":"
-                      << ntohs(client_addr.sin_port)
-                      << " [CID:" << std::hex;
-            for (int i = 0; i < 8; ++i) printf("%02x", key.cid[i]);
-            std::cout << std::dec << "] -> LocalCID:";
-            for (int i = 0; i < 8; ++i) printf("%02x", local_cid[i]);
-            std::cout << std::endl;
-        } else {
-            local_cid = it->second;
-        }
-
-        // === Заменяем Source CID на локальный ===
-        memcpy(&buf[offset], local_cid.data(), 8);
-
-        // === Отправляем в РФ по WireGuard ===
-        if (sendto(wg_fd, buf, n, 0,
-                   (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
-            std::cerr << "sendto backend failed: " << strerror(errno) << std::endl;
-        }
+        std::cerr << "recvfrom failed: " << strerror(errno) << std::endl;
+        continue;
     }
 
+    // === ЛОГИРУЕМ КАЖДЫЙ ПАКЕТ ===
+    std::cout << "[PACKET] Получено " << n << " байт от "
+              << inet_ntoa(client_addr.sin_addr) << ":"
+              << ntohs(client_addr.sin_port)
+              << " | Первые 16 байт: ";
+    for (int i = 0; i < std::min(n, 16L); ++i) {
+        printf("%02x ", (uint8_t)buf[i]);
+    }
+    std::cout << std::endl;
+
+    if (n < 5) continue;
+
+    // Проверяем, Initial ли это пакет
+    uint8_t packet_type = buf[0];
+    if ((packet_type & 0xC0) != 0xC0) {
+        std::cout << "[PACKET] Не Initial Packet (type=0x" << std::hex << (int)packet_type << std::dec << "), пропускаем\n";
+        continue;
+    }
+
+    uint8_t dcid_len = buf[1];
+    if (dcid_len < 1 || dcid_len > 20) {
+        std::cout << "[PACKET] Некорректная длина DCID: " << (int)dcid_len << "\n";
+        continue;
+    }
+
+    size_t offset = 2 + dcid_len;
+    if (offset + 1 >= (size_t)n) {
+        std::cout << "[PACKET] Слишком короткий пакет для SCID\n";
+        continue;
+    }
+
+    uint8_t scid_len = buf[offset];
+    if (scid_len < 8) {
+        std::cout << "[PACKET] SCID слишком короткий: " << (int)scid_len << "\n";
+        continue;
+    }
+
+    offset += 1;
+    if (offset + scid_len > (size_t)n) {
+        std::cout << "[PACKET] SCID выходит за пределы пакета\n";
+        continue;
+    }
+
+    uint8_t* scid = (uint8_t*)&buf[offset];
+
+    // Ключ: клиент + оригинальный CID
+    ClientKey key;
+    key.addr = client_addr.sin_addr.s_addr;
+    key.port = client_addr.sin_port;
+    memcpy(key.cid, scid, 8);
+
+    // Генерируем или получаем локальный CID
+    auto it = session_map.find(key);
+    std::vector<uint8_t> local_cid;
+    if (it == session_map.end()) {
+        local_cid = generate_local_cid();
+        session_map[key] = local_cid;
+        std::cout << "[PROXY] Новая сессия: "
+                  << inet_ntoa(client_addr.sin_addr) << ":"
+                  << ntohs(client_addr.sin_port)
+                  << " [CID:";
+        for (int i = 0; i < 8; ++i) printf("%02x", key.cid[i]);
+        std::cout << "] -> LocalCID:";
+        for (int i = 0; i < 8; ++i) printf("%02x", local_cid[i]);
+        std::cout << std::endl;
+    } else {
+        local_cid = it->second;
+    }
+
+    // Заменяем Source CID на локальный
+    memcpy(&buf[offset], local_cid.data(), 8);
+
+    // Отправляем в РФ
+    if (sendto(wg_fd, buf, n, 0,
+               (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
+        std::cerr << "sendto backend failed: " << strerror(errno) << std::endl;
+    } else {
+        std::cout << "[FORWARD] Переслано " << n << " байт в РФ ("
+                  << BACKEND_IP << ":" << BACKEND_PORT << ")\n";
+    }
+}
     std::cout << "[PROXY] Остановлен." << std::endl;
     if (udp_fd != -1) close(udp_fd);
     if (wg_fd != -1) close(wg_fd);
