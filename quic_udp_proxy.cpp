@@ -20,6 +20,24 @@
 #include <cerrno>
 #include <string>
 #include <sys/select.h>
+// Хеш для std::vector<uint8_t>
+struct VectorHash {
+    size_t operator()(const std::vector<uint8_t>& v) const {
+        std::hash<uint64_t> hasher;
+        size_t result = 0;
+        for (size_t i = 0; i < v.size(); ++i) {
+            result ^= hasher(v[i]) + 2654435761U + (result << 6) + (result >> 2);
+        }
+        return result;
+    }
+};
+
+// Равенство для vector
+struct VectorEqual {
+    bool operator()(const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) const {
+        return a == b;
+    }
+};
 
 // Настройки
 const char* BACKEND_IP = "10.8.0.11";       // IP твоего C++ сервера в РФ (через WG)
@@ -29,7 +47,6 @@ const size_t MAX_PACKET_SIZE = 1500;         // Максимальный раз�
 
 // Глобальный флаг для graceful shutdown
 volatile bool running = true;
-
 // Обработчик сигналов
 void signal_handler(int sig) {
     std::cout << "\n[PROXY] Получен сигнал " << sig << ". Остановка...\n";
@@ -60,7 +77,7 @@ struct ClientKeyHash {
 std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
 
 // Карта: LocalCID → ClientKey (для обратного пути)
-std::unordered_map<std::vector<uint8_t>, ClientKey, std::hash<std::string>> reverse_map;
+std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 
 // Неблокирующий режим
 int set_nonblocking(int fd) {
