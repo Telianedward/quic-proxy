@@ -65,12 +65,13 @@ int set_nonblocking(int fd) {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-// Генератор локальных CID
+// Генератор локальных CID 2
 std::vector<uint8_t> generate_local_cid() {
-    static uint64_t counter = 0;
     std::vector<uint8_t> cid(8);
-    memcpy(cid.data(), &counter, sizeof(counter));
-    counter++;
+    // Простой способ — использовать rand()
+    for (int i = 0; i < 8; ++i) {
+        cid[i] = rand() % 256;
+    }
     return cid;
 }
 
