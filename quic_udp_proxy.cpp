@@ -106,7 +106,8 @@ int main() {
 
     memset(&listen_addr, 0, sizeof(listen_addr));
     listen_addr.sin_family = AF_INET;
-    listen_addr.sin_addr.s_addr = INADDR_ANY;
+    //listen_addr.sin_addr.s_addr = INADDR_ANY;
+    inet_pton(AF_INET, "5.129.238.35", &listen_addr.sin_addr.s_addr); // внешний IP VPS
     listen_addr.sin_port = htons(LISTEN_PORT);
 std::cout << "[DEBUG] Перед bind... Адрес: 0.0.0.0:" << LISTEN_PORT << std::endl;
     if (bind(udp_fd, (struct sockaddr*)&listen_addr, sizeof(listen_addr)) < 0) {

@@ -40,7 +40,10 @@ sudo ./quic_proxy
 
 
 ```bash
-cd /opt/quic-proxy
+cd /opt
+rm -rf quic-proxy
+git clone https://github.com/Telianedward/quic-proxy.git
+cd quic-proxy
 g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
 sudo ./quic_proxy
 ```
