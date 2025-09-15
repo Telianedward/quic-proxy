@@ -100,6 +100,15 @@ bool get_external_ip(std::string& ip_out) {
     return true;
 }
 
+// Вывод байтов как hex
+void print_hex(const uint8_t* data, size_t len, const std::string& label) {
+    std::cout << "[" << label << "] ";
+    for (size_t i = 0; i < len; ++i) {
+        printf("%02x ", data[i]);
+    }
+    std::cout << std::endl;
+}
+
 int main() {
     int udp_fd = -1, wg_fd = -1;
     struct sockaddr_in client_addr, backend_addr, listen_addr;
@@ -183,56 +192,77 @@ int main() {
             continue;
         }
 
-        // === ЛОГИРУЕМ КАЖДЫЙ ПАКЕТ ===
+        std::string client_ip = inet_ntoa(client_addr.sin_addr);
+        uint16_t client_port = ntohs(client_addr.sin_port);
+
+        std::cout << "\n=== [PACKET START] ===" << std::endl;
         std::cout << "[PACKET] Получено " << n << " байт от "
-                  << inet_ntoa(client_addr.sin_addr) << ":"
-                  << ntohs(client_addr.sin_port)
-                  << " | Первые 16 байт: ";
-        for (int i = 0; i < std::min(n, 16L); ++i) {
-            printf("%02x ", (uint8_t)buf[i]);
+                  << client_ip << ":" << client_port << std::endl;
+
+        print_hex(reinterpret_cast<uint8_t*>(buf), std::min(n, 32L), "HEADER");
+
+        if (n < 6) {
+            std::cout << "[PACKET] Пакет слишком короткий (<6 байт)" << std::endl;
+            std::cout << "=== [PACKET END] ===\n" << std::endl;
+            continue;
         }
+
+        uint8_t packet_type = buf[0];
+        std::cout << "[QUIC] Первый байт (тип): 0x" << std::hex << (int)packet_type << std::dec << std::endl;
+
+        // Long Header?
+        if ((packet_type & 0xC0) != 0xC0) {
+            std::cout << "[PACKET] Не Long Header (Short Header?) — пропускаем" << std::endl;
+            std::cout << "=== [PACKET END] ===\n" << std::endl;
+            continue;
+        }
+
+        // Версия
+        uint32_t version = (buf[1] << 24) | (buf[2] << 16) | (buf[3] << 8) | buf[4];
+        std::cout << "[QUIC] Версия: 0x" << std::hex << version << std::dec << std::endl;
+
+        // DCIL и SCIL
+        size_t pos = 5;
+        uint8_t dcil = buf[pos++];
+        uint8_t scil = buf[pos++];
+
+        std::cout << "[QUIC] DCIL=" << (int)dcil << ", SCIL=" << (int)scil << std::endl;
+
+        if (dcil == 0) {
+            std::cout << "[PACKET] DCID длина = 0 — возможно, Retry или Version Negotiation" << std::endl;
+            std::cout << "=== [PACKET END] ===\n" << std::endl;
+            continue;
+        }
+
+        if (scil == 0) {
+            std::cout << "[PACKET] SCID длина = 0 — некорректно" << std::endl;
+            std::cout << "=== [PACKET END] ===\n" << std::endl;
+            continue;
+        }
+
+        if (pos + dcil + scil > (size_t)n) {
+            std::cout << "[PACKET] Пакет слишком короткий для CID" << std::endl;
+            std::cout << "=== [PACKET END] ===\n" << std::endl;
+            continue;
+        }
+
+        uint8_t* dcid = reinterpret_cast<uint8_t*>(&buf[pos]);
+        uint8_t* scid = reinterpret_cast<uint8_t*>(&buf[pos + dcil]);
+
+        std::cout << "[CID] DCID: ";
+        for (int i = 0; i < dcil; ++i) printf("%02x", dcid[i]);
         std::cout << std::endl;
 
-        if (n < 5) continue;
+        std::cout << "[CID] SCID: ";
+        for (int i = 0; i < scil; ++i) printf("%02x", scid[i]);
+        std::cout << std::endl;
 
-        // Проверяем, Initial ли это пакет
-        uint8_t packet_type = buf[0];
-        if ((packet_type & 0xC0) != 0xC0) {
-            std::cout << "[PACKET] Не Initial Packet (type=0x" << std::hex << (int)packet_type << std::dec << "), пропускаем\n";
-            continue;
-        }
-
-        uint8_t dcid_len = buf[1];
-        if (dcid_len < 1 || dcid_len > 20) {
-            std::cout << "[PACKET] Некорректная длина DCID: " << (int)dcid_len << "\n";
-            continue;
-        }
-
-        size_t offset = 2 + dcid_len;
-        if (offset + 1 >= (size_t)n) {
-            std::cout << "[PACKET] Слишком короткий пакет для SCID\n";
-            continue;
-        }
-
-        uint8_t scid_len = buf[offset];
-        if (scid_len < 8) {
-            std::cout << "[PACKET] SCID слишком короткий: " << (int)scid_len << "\n";
-            continue;
-        }
-
-        offset += 1;
-        if (offset + scid_len > (size_t)n) {
-            std::cout << "[PACKET] SCID выходит за пределы пакета\n";
-            continue;
-        }
-
-        uint8_t* scid = (uint8_t*)&buf[offset];
-
-        // Ключ: клиент + оригинальный CID
+        // Ключ: клиент + первые 8 байт SCID
         ClientKey key;
         key.addr = client_addr.sin_addr.s_addr;
         key.port = client_addr.sin_port;
-        memcpy(key.cid, scid, 8);
+        memset(key.cid, 0, 8);
+        memcpy(key.cid, scid, std::min((size_t)scil, (size_t)8));
 
         // Генерируем или получаем локальный CID
         auto it = session_map.find(key);
@@ -240,20 +270,23 @@ int main() {
         if (it == session_map.end()) {
             local_cid = generate_local_cid();
             session_map[key] = local_cid;
-            std::cout << "[PROXY] Новая сессия: "
-                      << inet_ntoa(client_addr.sin_addr) << ":"
-                      << ntohs(client_addr.sin_port)
-                      << " [CID:";
-            for (int i = 0; i < 8; ++i) printf("%02x", key.cid[i]);
+            std::cout << "[SESSION] Новая сессия: "
+                      << client_ip << ":" << client_port
+                      << " [SCID:";
+            for (int i = 0; i < std::min((size_t)scil, (size_t)8); ++i) printf("%02x", key.cid[i]);
             std::cout << "] -> LocalCID:";
             for (int i = 0; i < 8; ++i) printf("%02x", local_cid[i]);
             std::cout << std::endl;
         } else {
             local_cid = it->second;
+            std::cout << "[SESSION] Повторное соединение, используем LocalCID:";
+            for (int i = 0; i < 8; ++i) printf("%02x", local_cid[i]);
+            std::cout << std::endl;
         }
 
-        // Заменяем Source CID на локальный
-        memcpy(&buf[offset], local_cid.data(), 8);
+        // Заменяем SCID на локальный
+        memcpy(scid, local_cid.data(), 8);
+        std::cout << "[MODIFY] SCID заменён на LocalCID" << std::endl;
 
         // Отправляем в РФ
         ssize_t sent = sendto(wg_fd, buf, n, 0,
@@ -262,8 +295,10 @@ int main() {
             std::cerr << "sendto backend failed: " << strerror(errno) << std::endl;
         } else {
             std::cout << "[FORWARD] Переслано " << sent << " байт в РФ ("
-                      << BACKEND_IP << ":" << BACKEND_PORT << ")\n";
+                      << BACKEND_IP << ":" << BACKEND_PORT << ")" << std::endl;
         }
+
+        std::cout << "=== [PACKET END] ===\n" << std::endl;
     }
 
     std::cout << "[PROXY] Остановлен." << std::endl;
