@@ -1,4 +1,11 @@
 // quic_udp_proxy.cpp
+//
+// Простой UDP-прокси для end-to-end HTTP/3.
+// Пересылает QUIC-пакеты с порта 443 через WireGuard в РФ.
+//
+// Компиляция: g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
+// Запуск: sudo ./quic_proxy
+
 #include <iostream>
 #include <cstring>
 #include <unordered_map>
@@ -8,21 +15,30 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
+#include <csignal>
+#include <cerrno>
+#include <string>
 
-// Адрес твоего C++ сервера в РФ (через WireGuard)
-const char* BACKEND_IP = "10.8.0.11";
-const int BACKEND_PORT = 8585;
+// Настройки
+const char* BACKEND_IP = "10.8.0.11";       // IP твоего C++ сервера в РФ (через WG)
+const int BACKEND_PORT = 8585;               // Порт H3-сервера
+const int LISTEN_PORT = 443;                 // Порт для клиентов (HTTPS)
+const size_t MAX_PACKET_SIZE = 1500;         // Максимальный размер UDP-пакета
 
-// Локальный порт для клиентов
-const int LISTEN_PORT = 443;
+// Глобальный флаг для graceful shutdown
+volatile bool running = true;
 
-// Максимальный размер QUIC-пакета
-const size_t MAX_PACKET_SIZE = 1500;
+// Обработчик сигналов
+void signal_handler(int sig) {
+    std::cout << "\n[PROXY] Получен сигнал " << sig << ". Остановка...\n";
+    running = false;
+}
 
+// Хеш для ClientKey
 struct ClientKey {
-    uint32_t addr;     // IPv4 клиента
-    uint16_t port;     // Порт клиента
-    uint8_t cid[8];    // Первые 8 байт Source CID
+    uint32_t addr;
+    uint16_t port;
+    uint8_t cid[8];
 
     bool operator==(const ClientKey& other) const {
         return addr == other.addr && port == other.port &&
@@ -30,7 +46,6 @@ struct ClientKey {
     }
 };
 
-// Хеш для unordered_map
 struct ClientKeyHash {
     size_t operator()(const ClientKey& k) const {
         return std::hash<uint32_t>()(k.addr) ^
@@ -39,8 +54,15 @@ struct ClientKeyHash {
     }
 };
 
-// Карта: client + original_cid → local_cid
+// Карта: оригинальный CID + клиент → локальный CID
 std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
+
+// Неблокирующий режим
+int set_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) return -1;
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
 
 // Генератор локальных CID
 std::vector<uint8_t> generate_local_cid() {
@@ -51,22 +73,29 @@ std::vector<uint8_t> generate_local_cid() {
     return cid;
 }
 
-int set_nonblocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) return -1;
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
-
 int main() {
-    int udp_fd, wg_fd;
+    int udp_fd = -1, wg_fd = -1;
     struct sockaddr_in client_addr, backend_addr, listen_addr;
     socklen_t client_len;
 
-    // --- Сокет для клиентов (порт 443) ---
+    // Регистрация обработчика сигналов
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    // --- Создание сокета для клиентов (порт 443) ---
     udp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (udp_fd < 0) {
         perror("socket udp_fd failed");
         return 1;
+    }
+
+    // Устанавливаем опции для повторного использования порта
+    int opt = 1;
+    if (setsockopt(udp_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR failed");
+    }
+    if (setsockopt(udp_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEPORT failed");
     }
 
     if (set_nonblocking(udp_fd) == -1) {
@@ -86,7 +115,7 @@ int main() {
         return 1;
     }
 
-    // --- Сокет для отправки в РФ ---
+    // --- Создание сокета для отправки в РФ ---
     wg_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (wg_fd < 0) {
         perror("socket wg_fd failed");
@@ -103,7 +132,7 @@ int main() {
               << ", бэкенд: " << BACKEND_IP << ":" << BACKEND_PORT << std::endl;
 
     char buf[MAX_PACKET_SIZE];
-    while (true) {
+    while (running) {
         client_len = sizeof(client_addr);
         ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
                              (struct sockaddr*)&client_addr, &client_len);
@@ -113,32 +142,41 @@ int main() {
                 usleep(1000);
                 continue;
             }
-            perror("recvfrom failed");
+            std::cerr << "recvfrom failed: " << strerror(errno) << std::endl;
             continue;
         }
 
-        if (n < 5) continue;
+        if (n < 12) { // Слишком маленький пакет
+            continue;
+        }
 
-        // Проверяем, Initial ли это пакет
+        // === Проверка: это Initial Packet? ===
+        // Первый байт должен иметь маску 0xC0 для Initial
         uint8_t packet_type = buf[0];
-        if ((packet_type & 0xC0) != 0xC0) { // не Initial
-            continue;
+        if ((packet_type & 0xC0) != 0xC0) {
+            continue; // Не Initial — пропускаем
         }
 
+        // Извлекаем длины DCID и SCID
         uint8_t dcid_len = buf[1];
-        uint8_t scid_len = buf[2 + dcid_len];
+        if (dcid_len < 1 || dcid_len > 20) continue;
 
-        if (scid_len < 8) continue;
+        size_t offset = 2 + dcid_len;
+        if (offset + 1 >= (size_t)n) continue;
 
-        uint8_t* scid = (uint8_t*)&buf[2 + dcid_len + 1];
+        uint8_t scid_len = buf[offset];
+        offset += 1;
+        if (scid_len < 8 || offset + scid_len > (size_t)n) continue;
 
-        // Ключ: клиент + оригинальный CID
+        uint8_t* scid = (uint8_t*)&buf[offset];
+
+        // === Формируем ключ сессии ===
         ClientKey key;
         key.addr = client_addr.sin_addr.s_addr;
         key.port = client_addr.sin_port;
         memcpy(key.cid, scid, 8);
 
-        // Генерируем или получаем локальный CID
+        // === Получаем или генерируем локальный CID ===
         auto it = session_map.find(key);
         std::vector<uint8_t> local_cid;
         if (it == session_map.end()) {
@@ -146,22 +184,28 @@ int main() {
             session_map[key] = local_cid;
             std::cout << "[PROXY] Новая сессия: "
                       << inet_ntoa(client_addr.sin_addr) << ":"
-                      << ntohs(client_addr.sin_port) << "\n";
+                      << ntohs(client_addr.sin_port)
+                      << " [CID:" << std::hex;
+            for (int i = 0; i < 8; ++i) printf("%02x", key.cid[i]);
+            std::cout << std::dec << "] -> LocalCID:";
+            for (int i = 0; i < 8; ++i) printf("%02x", local_cid[i]);
+            std::cout << std::endl;
         } else {
             local_cid = it->second;
         }
 
-        // Заменяем Source CID на локальный
-        memcpy(&buf[2 + dcid_len + 1], local_cid.data(), 8);
+        // === Заменяем Source CID на локальный ===
+        memcpy(&buf[offset], local_cid.data(), 8);
 
-        // Отправляем в РФ
+        // === Отправляем в РФ по WireGuard ===
         if (sendto(wg_fd, buf, n, 0,
                    (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
-            perror("sendto backend failed");
+            std::cerr << "sendto backend failed: " << strerror(errno) << std::endl;
         }
     }
 
-    close(udp_fd);
-    close(wg_fd);
+    std::cout << "[PROXY] Остановлен." << std::endl;
+    if (udp_fd != -1) close(udp_fd);
+    if (wg_fd != -1) close(wg_fd);
     return 0;
 }

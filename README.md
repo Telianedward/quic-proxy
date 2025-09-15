@@ -5,11 +5,19 @@ rm -rf quic-proxy
 git clone https://github.com/Telianedward/quic-proxy.git
 cd quic-proxy
 g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
-sudo ./quic_proxy
 sudo systemctl daemon-reload
-sudo systemctl enable quic-proxy
-sudo systemctl start quic-proxy
-sudo systemctl status quic-proxy
+sudo systemctl enable quic-proxy.service
+sudo systemctl start quic-proxy.service
+sudo systemctl status quic-proxy.service
+journalctl -u quic-proxy.service -f
+```
+
+```bash
+cd /opt
+cd quic-proxy
+sudo systemctl restart quic-proxy.service
+sudo systemctl status quic-proxy.service
+journalctl -u quic-proxy.service -f
 ```
 
 
