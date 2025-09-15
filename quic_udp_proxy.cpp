@@ -108,7 +108,7 @@ int main() {
     listen_addr.sin_family = AF_INET;
     listen_addr.sin_addr.s_addr = INADDR_ANY;
     listen_addr.sin_port = htons(LISTEN_PORT);
-
+std::cout << "[DEBUG] Перед bind... Адрес: 0.0.0.0:" << LISTEN_PORT << std::endl;
     if (bind(udp_fd, (struct sockaddr*)&listen_addr, sizeof(listen_addr)) < 0) {
         perror("bind udp_fd failed");
         close(udp_fd);

@@ -19,7 +19,7 @@ sudo systemctl restart quic-proxy.service
 sudo systemctl status quic-proxy.service
 journalctl -u quic-proxy.service -f
 ```
-
+sudo systemctl stop quic-proxy.service
 
 На VPS (Нидерланды):
 ```bash
@@ -37,3 +37,12 @@ g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
 ```bash
 sudo ./quic_proxy
 ```
+
+
+```bash
+cd /opt/quic-proxy
+g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
+sudo ./quic_proxy
+```
+
+
