@@ -49,3 +49,10 @@ sudo ./quic_proxy
 ```
 
 
+```bash
+g++ -O2 -o test_udp test_udp.cpp
+sudo ./test_udp
+````
+
+
+sudo nano /etc/systemd/system/quic-proxy.service
