@@ -3,9 +3,7 @@
 // Заголовочный файл для UDP-прокси QUIC через WireGuard.
 // Содержит объявления всех типов, функций и констант.
 //
-// Версия: 1.1
-// Автор: пользователь
-// Совместимо с C++23
+// Версия: 1.2 (исправлено)
 #pragma once
 
 #include <iostream>
@@ -13,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <cstdint>  // ✅ Добавлено: для uint8_t, uint16_t, uint32_t
 
 /**
  * @brief Хеш-функция для std::vector<uint8_t>

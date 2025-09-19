@@ -21,6 +21,7 @@
 #include <cerrno>
 #include <sys/select.h>
 #include <cstdio>
+#include <ctime>  // ✅ Добавлено: для std::time(nullptr)
 
 // === Инициализация глобальных переменных ===
 
