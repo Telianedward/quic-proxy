@@ -96,12 +96,3 @@ void print_hex(const uint8_t *data, size_t len, const std::string &label) noexce
  * @param sig Номер сигнала
  */
 void signal_handler(int sig);
-
-# Перейти в директорию проекта
-cd /opt/quic-proxy
-
-# Компиляция с C++23
-g++ -O2 -std=c++23 -I. -o quic_proxy quic_udp_proxy.cpp -pthread
-
-# Запуск (только от root — нужен доступ к порту 443)
-sudo ./quic_proxy
