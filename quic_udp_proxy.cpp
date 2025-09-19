@@ -1,16 +1,17 @@
 // quic_udp_proxy.cpp
 //
-// UDP-прокси для HTTP/3 с поддержкой двусторонней передачи.
-// Пересылает QUIC-пакеты с порта 443 через WireGuard в РФ.
-// Автоматически определяет внешний IP.
+// Реализация UDP-прокси для HTTP/3 через WireGuard.
+// Пересылает QUIC-пакеты с порта 443 в РФ через тоннель.
 //
-// Компиляция: g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
+// Компиляция: g++ -O2 -std=c++23 -o quic_proxy quic_udp_proxy.cpp -pthread
 // Запуск: sudo ./quic_proxy
+//
+// Требует: quic_udp_proxy.hpp
+//
+// Версия: 1.1
 
-#include <iostream>
-#include <cstring>
-#include <unordered_map>
-#include <vector>
+#include "quic_udp_proxy.hpp"
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -18,79 +19,46 @@
 #include <arpa/inet.h>
 #include <csignal>
 #include <cerrno>
-#include <string>
 #include <sys/select.h>
-// Хеш для std::vector<uint8_t>
-struct VectorHash
-{
-    size_t operator()(const std::vector<uint8_t> &v) const
-    {
-        std::hash<uint64_t> hasher;
-        size_t result = 0;
-        for (size_t i = 0; i < v.size(); ++i)
-        {
-            result ^= hasher(v[i]) + 2654435761U + (result << 6) + (result >> 2);
-        }
-        return result;
-    }
-};
+#include <cstdio>
 
-// Равенство для vector
-struct VectorEqual
-{
-    bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const
-    {
-        return a == b;
-    }
-};
+// === Инициализация глобальных переменных ===
 
-// Настройки
-const char *BACKEND_IP = "10.8.0.11"; // IP твоего C++ сервера в РФ (через WG)
-const int BACKEND_PORT = 8585;        // Порт H3-сервера
-const int LISTEN_PORT = 443;          // Порт для клиентов (HTTPS)
-const size_t MAX_PACKET_SIZE = 1500;  // Максимальный размер UDP-пакета
-
-// Глобальный флаг для graceful shutdown
-volatile bool running = true;
-// Обработчик сигналов
-void signal_handler(int sig)
-{
-    std::cout << "\n[PROXY] Получен сигнал " << sig << ". Остановка...\n";
-    running = false;
-}
-
-// Хеш для ClientKey
-struct ClientKey
-{
-    uint32_t addr;
-    uint16_t port;
-    uint8_t cid[8];
-
-    bool operator==(const ClientKey &other) const
-    {
-        return addr == other.addr && port == other.port &&
-               memcmp(cid, other.cid, 8) == 0;
-    }
-};
-
-struct ClientKeyHash
-{
-    size_t operator()(const ClientKey &k) const
-    {
-        return std::hash<uint32_t>()(k.addr) ^
-               std::hash<uint16_t>()(k.port) ^
-               std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
-    }
-};
-
-// Карта: оригинальный SCID + клиент → локальный CID
 std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
-
-// Карта: LocalCID → ClientKey (для обратного пути)
 std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 
-// Неблокирующий режим
-int set_nonblocking(int fd)
+// === Реализация функций ===
+
+size_t VectorHash::operator()(const std::vector<uint8_t> &v) const noexcept
+{
+    std::hash<uint64_t> hasher;
+    size_t result = 0;
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        result ^= hasher(v[i]) + 2654435761U + (result << 6) + (result >> 2);
+    }
+    return result;
+}
+
+bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept
+{
+    return a == b;
+}
+
+bool ClientKey::operator==(const ClientKey &other) const noexcept
+{
+    return addr == other.addr && port == other.port &&
+           std::memcmp(cid, other.cid, 8) == 0;
+}
+
+size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
+{
+    return std::hash<uint32_t>()(k.addr) ^
+           (std::hash<uint16_t>()(k.port) << 1) ^
+           std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
+}
+
+int set_nonblocking(int fd) noexcept
 {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1)
@@ -98,19 +66,17 @@ int set_nonblocking(int fd)
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-// Генератор локальных CID
-std::vector<uint8_t> generate_local_cid()
+std::vector<uint8_t> generate_local_cid() noexcept
 {
     std::vector<uint8_t> cid(8);
     for (int i = 0; i < 8; ++i)
     {
-        cid[i] = rand() % 256;
+        cid[i] = static_cast<uint8_t>(rand() % 256);
     }
     return cid;
 }
 
-// Автоопределение внешнего IP
-bool get_external_ip(std::string &ip_out)
+bool get_external_ip(std::string &ip_out) noexcept
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0)
@@ -118,95 +84,111 @@ bool get_external_ip(std::string &ip_out)
 
     struct sockaddr_in temp_addr{};
     temp_addr.sin_family = AF_INET;
-    temp_addr.sin_port = htons(53); // DNS
+    temp_addr.sin_port = htons(53);
     inet_pton(AF_INET, "8.8.8.8", &temp_addr.sin_addr);
 
-    if (connect(sock, (struct sockaddr *)&temp_addr, sizeof(temp_addr)) < 0)
+    if (::connect(sock, (struct sockaddr *)&temp_addr, sizeof(temp_addr)) < 0)
     {
-        close(sock);
+        ::close(sock);
         return false;
     }
 
     socklen_t len = sizeof(temp_addr);
     if (getsockname(sock, (struct sockaddr *)&temp_addr, &len) < 0)
     {
-        close(sock);
+        ::close(sock);
         return false;
     }
 
     ip_out = inet_ntoa(temp_addr.sin_addr);
-    close(sock);
+    ::close(sock);
     return true;
 }
 
-// Вывод байтов как hex
-void print_hex(const uint8_t *data, size_t len, const std::string &label)
+void print_hex(const uint8_t *data, size_t len, const std::string &label) noexcept
 {
-    std::cout << "[" << label << "] ";
-    for (size_t i = 0; i < len; ++i)
+    if (!data || len == 0)
     {
-        printf("%02x ", data[i]);
+        std::printf("[DEBUG] [%s:%d] %s: пустые данные\n", __FILE__, __LINE__, label.c_str());
+        return;
     }
-    std::cout << std::endl;
+
+    std::printf("[DEBUG] [%s:%d] %s: ", __FILE__, __LINE__, label.c_str());
+    for (size_t i = 0; i < std::min(len, 32UL); ++i)
+    {
+        std::printf("%02x ", data[i]);
+    }
+    if (len > 32)
+        std::printf("...");
+    std::printf("\n");
 }
+
+volatile sig_atomic_t running = true;
+
+void signal_handler(int sig)
+{
+    std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получен сигнал %d. Остановка...\n", __LINE__, sig);
+    running = false;
+}
+
+// === Главный цикл ===
 
 int main()
 {
     int udp_fd = -1, wg_fd = -1;
-    struct sockaddr_in client_addr, backend_addr, listen_addr;
+    struct sockaddr_in client_addr{}, backend_addr{}, listen_addr{};
     socklen_t client_len = sizeof(client_addr);
     socklen_t backend_len = sizeof(backend_addr);
 
+    // Инициализация генератора случайных чисел
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
     // Регистрация обработчика сигналов
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
+    // --- Определение внешнего IP ---
+    std::string external_ip;
+    if (!get_external_ip(external_ip))
+    {
+        std::fprintf(stderr, "[WARNING] [quic_udp_proxy.cpp:%d] Не удалось определить внешний IP. Использую INADDR_ANY.\n", __LINE__);
+        external_ip = "0.0.0.0";
+    }
 
     // --- Создание сокета для клиентов (порт 443) ---
     udp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (udp_fd < 0)
     {
-        perror("socket udp_fd failed");
+        std::perror("[ERROR] socket udp_fd failed");
         return 1;
     }
 
     int opt = 1;
     if (setsockopt(udp_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
     {
-        perror("setsockopt SO_REUSEADDR failed");
+        std::perror("[ERROR] setsockopt SO_REUSEADDR failed");
     }
     if (setsockopt(udp_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
     {
-        perror("setsockopt SO_REUSEPORT failed");
+        std::perror("[ERROR] setsockopt SO_REUSEPORT failed");
     }
 
     if (set_nonblocking(udp_fd) == -1)
     {
-        perror("set_nonblocking udp_fd failed");
-        close(udp_fd);
+        std::perror("[ERROR] set_nonblocking udp_fd failed");
+        ::close(udp_fd);
         return 1;
     }
 
-    // --- Определение внешнего IP ---
-    std::string external_ip;
-    if (!get_external_ip(external_ip))
-    {
-        std::cerr << "[ERROR] Не удалось определить внешний IP. Использую INADDR_ANY.\n";
-        listen_addr.sin_addr.s_addr = INADDR_ANY;
-    }
-    else
-    {
-        inet_pton(AF_INET, external_ip.c_str(), &listen_addr.sin_addr.s_addr);
-    }
-
     // --- Привязка к порту ---
-    memset(&listen_addr, 0, sizeof(listen_addr));
     listen_addr.sin_family = AF_INET;
     listen_addr.sin_port = htons(LISTEN_PORT);
+    inet_pton(AF_INET, external_ip.c_str(), &listen_addr.sin_addr);
 
     if (bind(udp_fd, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0)
     {
-        perror("bind udp_fd failed");
-        close(udp_fd);
+        std::perror("[ERROR] bind udp_fd failed");
+        ::close(udp_fd);
         return 1;
     }
 
@@ -214,16 +196,16 @@ int main()
     wg_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (wg_fd < 0)
     {
-        perror("socket wg_fd failed");
-        close(udp_fd);
+        std::perror("[ERROR] socket wg_fd failed");
+        ::close(udp_fd);
         return 1;
     }
 
     if (set_nonblocking(wg_fd) == -1)
     {
-        perror("set_nonblocking wg_fd failed");
-        close(udp_fd);
-        close(wg_fd);
+        std::perror("[ERROR] set_nonblocking wg_fd failed");
+        ::close(udp_fd);
+        ::close(wg_fd);
         return 1;
     }
 
@@ -232,9 +214,8 @@ int main()
     inet_pton(AF_INET, BACKEND_IP, &backend_addr.sin_addr);
     backend_addr.sin_port = htons(BACKEND_PORT);
 
-    std::cout << "[PROXY] Запущен на порту " << LISTEN_PORT
-              << ", слушает IP: " << external_ip
-              << ", бэкенд: " << BACKEND_IP << ":" << BACKEND_PORT << std::endl;
+    std::printf("[INFO] [quic_udp_proxy.cpp:%d] Запущен на порту %d, IP: %s, бэкенд: %s:%d\n",
+                __LINE__, LISTEN_PORT, external_ip.c_str(), BACKEND_IP, BACKEND_PORT);
 
     char buf[MAX_PACKET_SIZE];
     fd_set read_fds;
@@ -250,11 +231,11 @@ int main()
         int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
         if (activity < 0 && errno != EINTR)
         {
-            std::cerr << "select error: " << strerror(errno) << std::endl;
+            std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] select error: %s\n", __LINE__, strerror(errno));
             continue;
         }
 
-        // === НАПРАВЛЕНИЕ: КЛИЕНТ → СЕРВЕР (в РФ) ===
+        // === НАПРАВЛЕНИЕ: КЛИЕНТ → СЕРВЕР ===
         if (FD_ISSET(udp_fd, &read_fds))
         {
             ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
@@ -263,27 +244,27 @@ int main()
             if (n < 0 || n >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
-                    std::cerr << "recvfrom client failed: " << strerror(errno) << std::endl;
+                    std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom client failed: %s\n", __LINE__, strerror(errno));
                 continue;
             }
 
             std::string client_ip = inet_ntoa(client_addr.sin_addr);
             uint16_t client_port = ntohs(client_addr.sin_port);
 
-            std::cout << "\n=== [CLIENT → SERVER] ===" << std::endl;
-            std::cout << "[PACKET] Получено " << n << " байт от " << client_ip << ":" << client_port << std::endl;
-            print_hex((uint8_t *)buf, std::min(n, 32L), "HEADER");
+            std::printf("\n=== [CLIENT → SERVER] ===\n");
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получено %zd байт от %s:%u\n", __LINE__, n, client_ip.c_str(), client_port);
+            print_hex(reinterpret_cast<uint8_t*>(buf), static_cast<size_t>(n), "HEADER");
 
             if (n < 6)
             {
-                std::cout << "[PACKET] Слишком короткий пакет" << std::endl;
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Слишком короткий пакет (%zd байт)\n", __LINE__, n);
                 continue;
             }
 
             uint8_t packet_type = buf[0];
             if ((packet_type & 0xC0) != 0xC0)
             {
-                std::cout << "[PACKET] Short Header — пропускаем" << std::endl;
+                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Short Header — пропускаем\n", __LINE__);
                 continue;
             }
 
@@ -292,24 +273,23 @@ int main()
             uint8_t dcil = buf[pos];
             uint8_t scil = buf[pos + 1];
 
-            std::cout << "[QUIC] Версия: 0x" << std::hex << version << std::dec
-                      << ", DCIL=" << (int)dcil << ", SCIL=" << (int)scil << std::endl;
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] QUIC Версия: 0x%08x, DCIL=%d, SCIL=%d\n",
+                        __LINE__, version, dcil, scil);
 
-            if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > (size_t)n)
+            if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > static_cast<size_t>(n))
             {
-                std::cout << "[PACKET] Некорректные CID" << std::endl;
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректные CID длины\n", __LINE__);
                 continue;
             }
 
-            uint8_t *dcid = (uint8_t *)&buf[pos + 2];
-            uint8_t *scid = (uint8_t *)&buf[pos + 2 + dcil];
+            uint8_t *dcid = reinterpret_cast<uint8_t*>(&buf[pos + 2]);
+            uint8_t *scid = reinterpret_cast<uint8_t*>(&buf[pos + 2 + dcil]);
 
-            // Ключ: клиент + первые 8 байт SCID
-            ClientKey key;
+            ClientKey key{};
             key.addr = client_addr.sin_addr.s_addr;
             key.port = client_addr.sin_port;
-            memset(key.cid, 0, 8);
-            memcpy(key.cid, scid, std::min((size_t)scil, (size_t)8));
+            std::memset(key.cid, 0, 8);
+            std::memcpy(key.cid, scid, std::min(static_cast<size_t>(scil), 8UL));
 
             auto it = session_map.find(key);
             std::vector<uint8_t> local_cid;
@@ -318,35 +298,31 @@ int main()
                 local_cid = generate_local_cid();
                 session_map[key] = local_cid;
                 reverse_map[local_cid] = key;
-                std::cout << "[SESSION] Новая сессия: "
-                          << client_ip << ":" << client_port << " → LocalCID:";
-                for (int i = 0; i < 8; ++i)
-                    printf("%02x", local_cid[i]);
-                std::cout << std::endl;
+                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → LocalCID:", __LINE__, client_ip.c_str(), client_port);
+                for (uint8_t b : local_cid) printf("%02x", b);
+                std::printf("\n");
             }
             else
             {
                 local_cid = it->second;
-                std::cout << "[SESSION] Reuse LocalCID:";
-                for (int i = 0; i < 8; ++i)
-                    printf("%02x", local_cid[i]);
-                std::cout << std::endl;
+                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse LocalCID:", __LINE__);
+                for (uint8_t b : local_cid) printf("%02x", b);
+                std::printf("\n");
             }
 
-            // === МОДИФИКАЦИЯ ПАКЕТА: меняем SCIL и SCID, но НЕ ОБРЕЗАЕМ ===
-            buf[pos + 1] = 8; // Устанавливаем SCIL = 8
-            memcpy(scid, local_cid.data(), 8);
+            // === МОДИФИКАЦИЯ ПАКЕТА: SCIL = 8, SCID = LocalCID ===
+            buf[5] = (buf[5] & 0xF0) | 8;
+            std::memcpy(scid, local_cid.data(), 8);
 
-            // Отправляем весь пакет без изменений длины
             ssize_t sent = sendto(wg_fd, buf, n, 0,
-                                  (struct sockaddr *)&backend_addr, sizeof(backend_addr));
+                                  (struct sockaddr*)&backend_addr, sizeof(backend_addr));
             if (sent < 0)
             {
-                std::cerr << "sendto backend failed: " << strerror(errno) << std::endl;
+                std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto backend failed: %s\n", __LINE__, strerror(errno));
             }
             else
             {
-                std::cout << "[FORWARD] Переслано " << sent << " байт в РФ" << std::endl;
+                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Переслано %zd байт в РФ\n", __LINE__, sent);
             }
         }
 
@@ -359,84 +335,75 @@ int main()
             if (n < 0 || n >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
-                    std::cerr << "recvfrom backend failed: " << strerror(errno) << std::endl;
+                    std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom backend failed: %s\n", __LINE__, strerror(errno));
                 continue;
             }
 
-            std::cout << "\n=== [SERVER → CLIENT] ===" << std::endl;
-            std::cout << "[REPLY] Получено " << n << " байт от сервера" << std::endl;
-            print_hex((uint8_t *)buf, std::min(n, 32L), "REPLY_HEADER");
+            std::printf("\n=== [SERVER → CLIENT] ===\n");
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получено %zd байт от сервера\n", __LINE__, n);
+            print_hex(reinterpret_cast<uint8_t*>(buf), static_cast<size_t>(n), "REPLY_HEADER");
 
             if (n < 6)
             {
-                std::cout << "[REPLY] Пакет слишком короткий" << std::endl;
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Пакет слишком короткий\n", __LINE__);
                 continue;
             }
 
             uint8_t packet_type = buf[0];
             if ((packet_type & 0xC0) != 0xC0)
             {
-                std::cout << "[REPLY] Short Header — пропускаем" << std::endl;
+                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Short Header — пропускаем\n", __LINE__);
                 continue;
             }
 
             size_t pos = 5;
-            uint8_t dcil = buf[pos];     // Это LocalCID (длина DCID)
-            uint8_t scil = buf[pos + 1]; // SCIL
+            uint8_t dcil = buf[pos];
+            uint8_t scil = buf[pos + 1];
 
-            // Проверяем длины CID
-            if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > (size_t)n)
+            if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > static_cast<size_t>(n))
             {
-                std::cout << "[REPLY] Некорректные CID" << std::endl;
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректные CID\n", __LINE__);
                 continue;
             }
 
-            uint8_t *dcid = (uint8_t *)&buf[pos + 2]; // DCID = LocalCID
-
-            // Создаём вектор из первых 8 байт DCID
+            uint8_t *dcid = reinterpret_cast<uint8_t*>(&buf[pos + 2]);
             std::vector<uint8_t> local_cid_vec(dcid, dcid + 8);
 
-            // Ищем в reverse_map оригинальную информацию о клиенте
             auto rev_it = reverse_map.find(local_cid_vec);
             if (rev_it == reverse_map.end())
             {
-                std::cout << "[REPLY] Неизвестный LocalCID — пакет потерялся" << std::endl;
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Неизвестный LocalCID — пакет потерялся\n", __LINE__);
                 continue;
             }
 
             ClientKey orig_key = rev_it->second;
 
-            // === МОДИФИКАЦИЯ ПАКЕТА: восстанавливаем оригинальный SCID клиента как DCID ===
-            buf[pos] = 8;                  // Устанавливаем DCIL = 8
-            buf[pos + 1] = 8;              // Устанавливаем SCIL = 8 (клиент будет ожидать Long Header)
-            memcpy(dcid, orig_key.cid, 8); // Заменяем LocalCID на оригинальный SCID
+            // === ВОССТАНОВЛЕНИЕ ОРИГИНАЛЬНОГО SCID КАК DCID ===
+            buf[5] = (buf[5] & 0x0F) | 0x80;  // DCIL = 8
+            std::memcpy(dcid, orig_key.cid, 8);
 
-            // Формируем адрес назначения — клиент
             struct sockaddr_in client_dest{};
             client_dest.sin_family = AF_INET;
             client_dest.sin_addr.s_addr = orig_key.addr;
             client_dest.sin_port = orig_key.port;
 
-            // Отправляем пакет клиенту
             ssize_t sent = sendto(udp_fd, buf, n, 0,
                                   (struct sockaddr *)&client_dest, sizeof(client_dest));
 
             if (sent < 0)
             {
-                std::cerr << "sendto client failed: " << strerror(errno) << std::endl;
+                std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto client failed: %s\n", __LINE__, strerror(errno));
             }
             else
             {
-                std::cout << "[REPLY] Отправлено " << sent << " байт клиенту "
-                          << inet_ntoa(client_dest.sin_addr) << ":" << ntohs(client_dest.sin_port) << std::endl;
+                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Отправлено %zd байт клиенту %s:%u\n",
+                            __LINE__, sent, inet_ntoa(client_dest.sin_addr), ntohs(client_dest.sin_port));
             }
         }
     }
 
-    std::cout << "[PROXY] Остановлен." << std::endl;
-    if (udp_fd != -1)
-        close(udp_fd);
-    if (wg_fd != -1)
-        close(wg_fd);
+    std::printf("[INFO] [quic_udp_proxy.cpp:%d] Прокси остановлен.\n", __LINE__);
+    if (udp_fd != -1) ::close(udp_fd);
+    if (wg_fd != -1) ::close(wg_fd);
     return 0;
 }
