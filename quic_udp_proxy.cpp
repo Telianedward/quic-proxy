@@ -307,8 +307,8 @@ int main()
             }
 
             // === МОДИФИКАЦИЯ ПАКЕТА: SCIL = 8, SCID = LocalCID ===
-            buf[5] = (buf[5] & 0xF0) | 8;
-            std::memcpy(scid, local_cid.data(), 8);
+            // buf[5] = (buf[5] & 0xF0) | 8;
+            // std::memcpy(scid, local_cid.data(), 8);
 
             ssize_t sent = sendto(wg_fd, buf, n, 0,
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
