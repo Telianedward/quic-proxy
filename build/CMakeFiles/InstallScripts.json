@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/xxx/quic-proxy/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

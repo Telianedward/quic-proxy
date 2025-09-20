@@ -1,0 +1,44 @@
+[
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/auth.cpp.o -c /Users/xxx/qwen-ui/backend/src/auth.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/auth.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/auth.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/handler.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/handler.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/handler.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o -c /Users/xxx/qwen-ui/backend/src/html_generator.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/html_generator.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/main.cpp.o -c /Users/xxx/qwen-ui/backend/src/main.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/main.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/main.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/server.cpp.o -c /Users/xxx/qwen-ui/backend/src/server.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/server.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/server.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/web/html_parser.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/web_client.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/web/web_client.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o"
+}
+]

@@ -86,6 +86,6 @@ cd /opt/quic-proxy
 
 # Компиляция с C++23
 g++ -O2 -std=c++23 -I. -o quic_proxy quic_udp_proxy.cpp -pthread
-
+rm -rf quic_proxy
 # Запуск (только от root — нужен доступ к порту 443)
 sudo ./quic_proxy
