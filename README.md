@@ -84,6 +84,8 @@ journalctl -u erosj -f | grep -i "reply\|retry"
 # Перейти в директорию проекта
 cd /opt/quic-proxy
 
+git clone https://github.com/Telianedward/quic-proxy.git
+
 # Компиляция с C++23
 g++ -O2 -std=c++23 -I. -o quic_proxy quic_udp_proxy.cpp -pthread
 rm -rf quic_proxy
