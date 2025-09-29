@@ -19,7 +19,9 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include <cstdint>  // ✅ Добавлено: для uint8_t, uint16_t, uint32_t
+#include <cstdint>   // Для uint8_t, uint16_t, uint32_t
+#include <algorithm> // Для std::min, std::max
+#include <cstdlib>   // Для std::srand, std::rand
 
 /**
  * @brief Хеш-функция для std::vector<uint8_t>

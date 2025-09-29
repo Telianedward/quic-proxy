@@ -23,9 +23,9 @@
 #include <cerrno>
 #include <sys/select.h>
 #include <cstdio>
-#include <ctime> // ✅ Добавлено: для std::time(nullptr)
-#include <fmt/format.h>
-#include <fmt/chrono.h>
+#include <ctime> // Для std::time(nullptr)
+#include <random> // Для std::mt19937, std::uniform_int_distribution
+
 // === Инициализация глобальных переменных ===
 
 std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
@@ -72,10 +72,15 @@ int set_nonblocking(int fd) noexcept
 
 std::vector<uint8_t> generate_local_cid() noexcept
 {
+    // Используем std::mt19937 для C++23
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+
     std::vector<uint8_t> cid(8);
     for (int i = 0; i < 8; ++i)
     {
-        cid[i] = static_cast<uint8_t>(rand() % 256);
+        cid[i] = static_cast<uint8_t>(dis(gen)); // уникальный SCID
     }
     return cid;
 }
@@ -131,7 +136,6 @@ volatile sig_atomic_t running = true;
 
 void signal_handler(int sig)
 {
-    // LOG_INFO(fmt::format("[INFO] [quic_udp_proxy.cpp:%d] Получен сигнал %d. Остановка...\n", __LINE__, sig));
     std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получен сигнал %d. Остановка...\n", __LINE__, sig);
     running = false;
 }
@@ -146,7 +150,8 @@ int main()
     socklen_t backend_len = sizeof(backend_addr);
 
     // Инициализация генератора случайных чисел
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
     // Регистрация обработчика сигналов
     std::signal(SIGINT, signal_handler);
@@ -180,7 +185,7 @@ int main()
     // --- Привязка к порту ---
     memset(&listen_addr, 0, sizeof(listen_addr));
     listen_addr.sin_family = AF_INET;
-    listen_addr.sin_addr.s_addr = INADDR_ANY; // ✅ ИСПРАВЛЕНО
+    listen_addr.sin_addr.s_addr = INADDR_ANY;
     listen_addr.sin_port = htons(LISTEN_PORT);
 
     if (bind(udp_fd, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0)
@@ -212,9 +217,8 @@ int main()
     inet_pton(AF_INET, BACKEND_IP, &backend_addr.sin_addr);
     backend_addr.sin_port = htons(BACKEND_PORT);
 
-    //  LOG_INFO(fmt::format("[INFO] [quic_udp_proxy.cpp:%d] Запущен на порту %d, слушает 0.0.0.0, бэкенд: %s:%d\n",
-    //             __LINE__, LISTEN_PORT, BACKEND_IP, BACKEND_PORT));
- std::printf("[INFO] [quic_udp_proxy.cpp:%d] Запущен на порту %d, слушает 0.0.0.0, бэкенд: %s:%d\n", __LINE__, LISTEN_PORT, BACKEND_IP, BACKEND_PORT);
+    std::printf("[INFO] [quic_udp_proxy.cpp:%d] Запущен на порту %d, слушает 0.0.0.0, бэкенд: %s:%d\n",
+                __LINE__, LISTEN_PORT, BACKEND_IP, BACKEND_PORT);
 
     char buf[MAX_PACKET_SIZE];
     fd_set read_fds;
@@ -312,8 +316,8 @@ int main()
             }
 
             // === МОДИФИКАЦИЯ ПАКЕТА: SCIL = 8, SCID = LocalCID ===
-            // buf[5] = (buf[5] & 0xF0) | 8;
-            // std::memcpy(scid, local_cid.data(), 8);
+            buf[5] = (buf[5] & 0xF0) | 8; // Устанавливаем SCIL = 8
+            std::memcpy(scid, local_cid.data(), 8); // Заменяем SCID на LocalCID
 
             ssize_t sent = sendto(wg_fd, buf, n, 0,
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
@@ -402,7 +406,7 @@ int main()
             }
         }
     }
-    // LOG_INFO(fmt::format("[INFO] [quic_udp_proxy.cpp:%d] Прокси остановлен.\n", __LINE__));
+
     std::printf("[INFO] [quic_udp_proxy.cpp:%d] Прокси остановлен.\n", __LINE__);
     if (udp_fd != -1)
         ::close(udp_fd);
