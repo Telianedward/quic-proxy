@@ -129,6 +129,30 @@ qwen-backend/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/build
 .PHONY : qwen-backend/fast
 
+src/async/async_server.o: src/async/async_server.cpp.o
+.PHONY : src/async/async_server.o
+
+# target to build an object file
+src/async/async_server.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o
+.PHONY : src/async/async_server.cpp.o
+
+src/async/async_server.i: src/async/async_server.cpp.i
+.PHONY : src/async/async_server.i
+
+# target to preprocess a source file
+src/async/async_server.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.i
+.PHONY : src/async/async_server.cpp.i
+
+src/async/async_server.s: src/async/async_server.cpp.s
+.PHONY : src/async/async_server.s
+
+# target to generate assembly for a file
+src/async/async_server.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.s
+.PHONY : src/async/async_server.cpp.s
+
 src/auth.o: src/auth.cpp.o
 .PHONY : src/auth.o
 
@@ -152,6 +176,198 @@ src/auth.s: src/auth.cpp.s
 src/auth.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/auth.cpp.s
 .PHONY : src/auth.cpp.s
+
+src/config.o: src/config.cpp.o
+.PHONY : src/config.o
+
+# target to build an object file
+src/config.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/config.cpp.o
+.PHONY : src/config.cpp.o
+
+src/config.i: src/config.cpp.i
+.PHONY : src/config.i
+
+# target to preprocess a source file
+src/config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/config.cpp.i
+.PHONY : src/config.cpp.i
+
+src/config.s: src/config.cpp.s
+.PHONY : src/config.s
+
+# target to generate assembly for a file
+src/config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/config.cpp.s
+.PHONY : src/config.cpp.s
+
+src/content_handler.o: src/content_handler.cpp.o
+.PHONY : src/content_handler.o
+
+# target to build an object file
+src/content_handler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o
+.PHONY : src/content_handler.cpp.o
+
+src/content_handler.i: src/content_handler.cpp.i
+.PHONY : src/content_handler.i
+
+# target to preprocess a source file
+src/content_handler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/content_handler.cpp.i
+.PHONY : src/content_handler.cpp.i
+
+src/content_handler.s: src/content_handler.cpp.s
+.PHONY : src/content_handler.s
+
+# target to generate assembly for a file
+src/content_handler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/content_handler.cpp.s
+.PHONY : src/content_handler.cpp.s
+
+src/database/SQLQueryBuilder.o: src/database/SQLQueryBuilder.cpp.o
+.PHONY : src/database/SQLQueryBuilder.o
+
+# target to build an object file
+src/database/SQLQueryBuilder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o
+.PHONY : src/database/SQLQueryBuilder.cpp.o
+
+src/database/SQLQueryBuilder.i: src/database/SQLQueryBuilder.cpp.i
+.PHONY : src/database/SQLQueryBuilder.i
+
+# target to preprocess a source file
+src/database/SQLQueryBuilder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.i
+.PHONY : src/database/SQLQueryBuilder.cpp.i
+
+src/database/SQLQueryBuilder.s: src/database/SQLQueryBuilder.cpp.s
+.PHONY : src/database/SQLQueryBuilder.s
+
+# target to generate assembly for a file
+src/database/SQLQueryBuilder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.s
+.PHONY : src/database/SQLQueryBuilder.cpp.s
+
+src/database/TransactionGuard.o: src/database/TransactionGuard.cpp.o
+.PHONY : src/database/TransactionGuard.o
+
+# target to build an object file
+src/database/TransactionGuard.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o
+.PHONY : src/database/TransactionGuard.cpp.o
+
+src/database/TransactionGuard.i: src/database/TransactionGuard.cpp.i
+.PHONY : src/database/TransactionGuard.i
+
+# target to preprocess a source file
+src/database/TransactionGuard.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.i
+.PHONY : src/database/TransactionGuard.cpp.i
+
+src/database/TransactionGuard.s: src/database/TransactionGuard.cpp.s
+.PHONY : src/database/TransactionGuard.s
+
+# target to generate assembly for a file
+src/database/TransactionGuard.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.s
+.PHONY : src/database/TransactionGuard.cpp.s
+
+src/database/connection/ConnectionStringBuilder.o: src/database/connection/ConnectionStringBuilder.cpp.o
+.PHONY : src/database/connection/ConnectionStringBuilder.o
+
+# target to build an object file
+src/database/connection/ConnectionStringBuilder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o
+.PHONY : src/database/connection/ConnectionStringBuilder.cpp.o
+
+src/database/connection/ConnectionStringBuilder.i: src/database/connection/ConnectionStringBuilder.cpp.i
+.PHONY : src/database/connection/ConnectionStringBuilder.i
+
+# target to preprocess a source file
+src/database/connection/ConnectionStringBuilder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.i
+.PHONY : src/database/connection/ConnectionStringBuilder.cpp.i
+
+src/database/connection/ConnectionStringBuilder.s: src/database/connection/ConnectionStringBuilder.cpp.s
+.PHONY : src/database/connection/ConnectionStringBuilder.s
+
+# target to generate assembly for a file
+src/database/connection/ConnectionStringBuilder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.s
+.PHONY : src/database/connection/ConnectionStringBuilder.cpp.s
+
+src/database/db/DatabaseBuilder.o: src/database/db/DatabaseBuilder.cpp.o
+.PHONY : src/database/db/DatabaseBuilder.o
+
+# target to build an object file
+src/database/db/DatabaseBuilder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o
+.PHONY : src/database/db/DatabaseBuilder.cpp.o
+
+src/database/db/DatabaseBuilder.i: src/database/db/DatabaseBuilder.cpp.i
+.PHONY : src/database/db/DatabaseBuilder.i
+
+# target to preprocess a source file
+src/database/db/DatabaseBuilder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.i
+.PHONY : src/database/db/DatabaseBuilder.cpp.i
+
+src/database/db/DatabaseBuilder.s: src/database/db/DatabaseBuilder.cpp.s
+.PHONY : src/database/db/DatabaseBuilder.s
+
+# target to generate assembly for a file
+src/database/db/DatabaseBuilder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.s
+.PHONY : src/database/db/DatabaseBuilder.cpp.s
+
+src/database/insert/InsertBuilder.o: src/database/insert/InsertBuilder.cpp.o
+.PHONY : src/database/insert/InsertBuilder.o
+
+# target to build an object file
+src/database/insert/InsertBuilder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o
+.PHONY : src/database/insert/InsertBuilder.cpp.o
+
+src/database/insert/InsertBuilder.i: src/database/insert/InsertBuilder.cpp.i
+.PHONY : src/database/insert/InsertBuilder.i
+
+# target to preprocess a source file
+src/database/insert/InsertBuilder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.i
+.PHONY : src/database/insert/InsertBuilder.cpp.i
+
+src/database/insert/InsertBuilder.s: src/database/insert/InsertBuilder.cpp.s
+.PHONY : src/database/insert/InsertBuilder.s
+
+# target to generate assembly for a file
+src/database/insert/InsertBuilder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.s
+.PHONY : src/database/insert/InsertBuilder.cpp.s
+
+src/database/table/TableBuilder.o: src/database/table/TableBuilder.cpp.o
+.PHONY : src/database/table/TableBuilder.o
+
+# target to build an object file
+src/database/table/TableBuilder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o
+.PHONY : src/database/table/TableBuilder.cpp.o
+
+src/database/table/TableBuilder.i: src/database/table/TableBuilder.cpp.i
+.PHONY : src/database/table/TableBuilder.i
+
+# target to preprocess a source file
+src/database/table/TableBuilder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.i
+.PHONY : src/database/table/TableBuilder.cpp.i
+
+src/database/table/TableBuilder.s: src/database/table/TableBuilder.cpp.s
+.PHONY : src/database/table/TableBuilder.s
+
+# target to generate assembly for a file
+src/database/table/TableBuilder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.s
+.PHONY : src/database/table/TableBuilder.cpp.s
 
 src/handler.o: src/handler.cpp.o
 .PHONY : src/handler.o
@@ -201,6 +417,30 @@ src/html_generator.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/html_generator.cpp.s
 .PHONY : src/html_generator.cpp.s
 
+src/logger.o: src/logger.cpp.o
+.PHONY : src/logger.o
+
+# target to build an object file
+src/logger.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/logger.cpp.o
+.PHONY : src/logger.cpp.o
+
+src/logger.i: src/logger.cpp.i
+.PHONY : src/logger.i
+
+# target to preprocess a source file
+src/logger.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/logger.cpp.i
+.PHONY : src/logger.cpp.i
+
+src/logger.s: src/logger.cpp.s
+.PHONY : src/logger.s
+
+# target to generate assembly for a file
+src/logger.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/logger.cpp.s
+.PHONY : src/logger.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -249,53 +489,53 @@ src/server.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/server.cpp.s
 .PHONY : src/server.cpp.s
 
-src/web/html_parser.o: src/web/html_parser.cpp.o
-.PHONY : src/web/html_parser.o
+src/server_copy.o: src/server_copy.cpp.o
+.PHONY : src/server_copy.o
 
 # target to build an object file
-src/web/html_parser.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o
-.PHONY : src/web/html_parser.cpp.o
+src/server_copy.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o
+.PHONY : src/server_copy.cpp.o
 
-src/web/html_parser.i: src/web/html_parser.cpp.i
-.PHONY : src/web/html_parser.i
+src/server_copy.i: src/server_copy.cpp.i
+.PHONY : src/server_copy.i
 
 # target to preprocess a source file
-src/web/html_parser.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.i
-.PHONY : src/web/html_parser.cpp.i
+src/server_copy.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/server_copy.cpp.i
+.PHONY : src/server_copy.cpp.i
 
-src/web/html_parser.s: src/web/html_parser.cpp.s
-.PHONY : src/web/html_parser.s
+src/server_copy.s: src/server_copy.cpp.s
+.PHONY : src/server_copy.s
 
 # target to generate assembly for a file
-src/web/html_parser.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.s
-.PHONY : src/web/html_parser.cpp.s
+src/server_copy.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/server_copy.cpp.s
+.PHONY : src/server_copy.cpp.s
 
-src/web/web_client.o: src/web/web_client.cpp.o
-.PHONY : src/web/web_client.o
+src/web/html_renderer.o: src/web/html_renderer.cpp.o
+.PHONY : src/web/html_renderer.o
 
 # target to build an object file
-src/web/web_client.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o
-.PHONY : src/web/web_client.cpp.o
+src/web/html_renderer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o
+.PHONY : src/web/html_renderer.cpp.o
 
-src/web/web_client.i: src/web/web_client.cpp.i
-.PHONY : src/web/web_client.i
+src/web/html_renderer.i: src/web/html_renderer.cpp.i
+.PHONY : src/web/html_renderer.i
 
 # target to preprocess a source file
-src/web/web_client.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.i
-.PHONY : src/web/web_client.cpp.i
+src/web/html_renderer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.i
+.PHONY : src/web/html_renderer.cpp.i
 
-src/web/web_client.s: src/web/web_client.cpp.s
-.PHONY : src/web/web_client.s
+src/web/html_renderer.s: src/web/html_renderer.cpp.s
+.PHONY : src/web/html_renderer.s
 
 # target to generate assembly for a file
-src/web/web_client.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.s
-.PHONY : src/web/web_client.cpp.s
+src/web/html_renderer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/qwen-backend.dir/build.make CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.s
+.PHONY : src/web/html_renderer.cpp.s
 
 # Help Target
 help:
@@ -306,27 +546,57 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... qwen-backend"
+	@echo "... src/async/async_server.o"
+	@echo "... src/async/async_server.i"
+	@echo "... src/async/async_server.s"
 	@echo "... src/auth.o"
 	@echo "... src/auth.i"
 	@echo "... src/auth.s"
+	@echo "... src/config.o"
+	@echo "... src/config.i"
+	@echo "... src/config.s"
+	@echo "... src/content_handler.o"
+	@echo "... src/content_handler.i"
+	@echo "... src/content_handler.s"
+	@echo "... src/database/SQLQueryBuilder.o"
+	@echo "... src/database/SQLQueryBuilder.i"
+	@echo "... src/database/SQLQueryBuilder.s"
+	@echo "... src/database/TransactionGuard.o"
+	@echo "... src/database/TransactionGuard.i"
+	@echo "... src/database/TransactionGuard.s"
+	@echo "... src/database/connection/ConnectionStringBuilder.o"
+	@echo "... src/database/connection/ConnectionStringBuilder.i"
+	@echo "... src/database/connection/ConnectionStringBuilder.s"
+	@echo "... src/database/db/DatabaseBuilder.o"
+	@echo "... src/database/db/DatabaseBuilder.i"
+	@echo "... src/database/db/DatabaseBuilder.s"
+	@echo "... src/database/insert/InsertBuilder.o"
+	@echo "... src/database/insert/InsertBuilder.i"
+	@echo "... src/database/insert/InsertBuilder.s"
+	@echo "... src/database/table/TableBuilder.o"
+	@echo "... src/database/table/TableBuilder.i"
+	@echo "... src/database/table/TableBuilder.s"
 	@echo "... src/handler.o"
 	@echo "... src/handler.i"
 	@echo "... src/handler.s"
 	@echo "... src/html_generator.o"
 	@echo "... src/html_generator.i"
 	@echo "... src/html_generator.s"
+	@echo "... src/logger.o"
+	@echo "... src/logger.i"
+	@echo "... src/logger.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
 	@echo "... src/server.o"
 	@echo "... src/server.i"
 	@echo "... src/server.s"
-	@echo "... src/web/html_parser.o"
-	@echo "... src/web/html_parser.i"
-	@echo "... src/web/html_parser.s"
-	@echo "... src/web/web_client.o"
-	@echo "... src/web/web_client.i"
-	@echo "... src/web/web_client.s"
+	@echo "... src/server_copy.o"
+	@echo "... src/server_copy.i"
+	@echo "... src/server_copy.s"
+	@echo "... src/web/html_renderer.o"
+	@echo "... src/web/html_renderer.i"
+	@echo "... src/web/html_renderer.s"
 .PHONY : help
 
 

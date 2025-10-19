@@ -4,9 +4,9 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/Users/xxx/qwen-ui/backend/include
+CXX_INCLUDES = -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include
 
-CXX_FLAGSarm64 = -g -std=gnu++20 -arch arm64
+CXX_FLAGSarm64 = -g -std=c++2b -arch arm64
 
-CXX_FLAGS = -g -std=gnu++20 -arch arm64
+CXX_FLAGS = -g -std=c++2b -arch arm64
 

@@ -40,7 +40,7 @@ sudo ./quic_proxy
 
 
 ```bash
-cd /opt/quic-proxy
+cd /opt
 rm -rf quic-proxy
 git clone https://github.com/Telianedward/quic-proxy.git
 cd quic-proxy

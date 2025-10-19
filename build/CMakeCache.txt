@@ -255,6 +255,12 @@ QwenChatBackend_IS_TOP_LEVEL:STATIC=ON
 QwenChatBackend_SOURCE_DIR:STATIC=/Users/xxx/qwen-ui/backend
 
 //Path to a library.
+pkgcfg_lib_FMT_fmt:FILEPATH=/opt/homebrew/Cellar/fmt/11.2.0/lib/libfmt.dylib
+
+//Path to a library.
+pkgcfg_lib_PQXX_pqxx:FILEPATH=/opt/homebrew/Cellar/libpqxx/7.10.1/lib/libpqxx.dylib
+
+//Path to a library.
 pkgcfg_lib__OPENSSL_crypto:FILEPATH=/opt/homebrew/Cellar/openssl@3/3.5.2/lib/libcrypto.dylib
 
 //Path to a library.
@@ -406,6 +412,43 @@ CMAKE_UNAME:INTERNAL=/usr/bin/uname
 CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
 //Details about finding OpenSSL
 FIND_PACKAGE_MESSAGE_DETAILS_OpenSSL:INTERNAL=[/opt/homebrew/Cellar/openssl@3/3.5.2/lib/libcrypto.dylib][/opt/homebrew/Cellar/openssl@3/3.5.2/include][ ][v3.5.2()]
+//Details about finding PkgConfig
+FIND_PACKAGE_MESSAGE_DETAILS_PkgConfig:INTERNAL=[/opt/homebrew/bin/pkg-config][v2.5.1()]
+FMT_CFLAGS:INTERNAL=-I/opt/homebrew/Cellar/fmt/11.2.0/include
+FMT_CFLAGS_I:INTERNAL=
+FMT_CFLAGS_OTHER:INTERNAL=
+FMT_FOUND:INTERNAL=1
+FMT_INCLUDEDIR:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/include
+FMT_INCLUDE_DIRS:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/include
+FMT_LDFLAGS:INTERNAL=-L/opt/homebrew/Cellar/fmt/11.2.0/lib;-lfmt
+FMT_LDFLAGS_OTHER:INTERNAL=
+FMT_LIBDIR:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/lib
+FMT_LIBRARIES:INTERNAL=fmt
+FMT_LIBRARY_DIRS:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/lib
+FMT_LIBS:INTERNAL=
+FMT_LIBS_L:INTERNAL=
+FMT_LIBS_OTHER:INTERNAL=
+FMT_LIBS_PATHS:INTERNAL=
+FMT_MODULE_NAME:INTERNAL=fmt
+FMT_PREFIX:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0
+FMT_STATIC_CFLAGS:INTERNAL=-I/opt/homebrew/Cellar/fmt/11.2.0/include
+FMT_STATIC_CFLAGS_I:INTERNAL=
+FMT_STATIC_CFLAGS_OTHER:INTERNAL=
+FMT_STATIC_INCLUDE_DIRS:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/include
+FMT_STATIC_LDFLAGS:INTERNAL=-L/opt/homebrew/Cellar/fmt/11.2.0/lib;-lfmt
+FMT_STATIC_LDFLAGS_OTHER:INTERNAL=
+FMT_STATIC_LIBDIR:INTERNAL=
+FMT_STATIC_LIBRARIES:INTERNAL=fmt
+FMT_STATIC_LIBRARY_DIRS:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/lib
+FMT_STATIC_LIBS:INTERNAL=
+FMT_STATIC_LIBS_L:INTERNAL=
+FMT_STATIC_LIBS_OTHER:INTERNAL=
+FMT_STATIC_LIBS_PATHS:INTERNAL=
+FMT_VERSION:INTERNAL=11.2.0
+FMT_fmt_INCLUDEDIR:INTERNAL=
+FMT_fmt_LIBDIR:INTERNAL=
+FMT_fmt_PREFIX:INTERNAL=
+FMT_fmt_VERSION:INTERNAL=
 //ADVANCED property for variable: OPENSSL_CRYPTO_LIBRARY
 OPENSSL_CRYPTO_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: OPENSSL_INCLUDE_DIR
@@ -416,6 +459,41 @@ OPENSSL_SSL_LIBRARY-ADVANCED:INTERNAL=1
 PKG_CONFIG_ARGN-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PKG_CONFIG_EXECUTABLE
 PKG_CONFIG_EXECUTABLE-ADVANCED:INTERNAL=1
+PQXX_CFLAGS:INTERNAL=-I/opt/homebrew/Cellar/libpqxx/7.10.1/include
+PQXX_CFLAGS_I:INTERNAL=
+PQXX_CFLAGS_OTHER:INTERNAL=
+PQXX_FOUND:INTERNAL=1
+PQXX_INCLUDEDIR:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/include
+PQXX_INCLUDE_DIRS:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/include
+PQXX_LDFLAGS:INTERNAL=-L/opt/homebrew/Cellar/libpqxx/7.10.1/lib;-lpqxx
+PQXX_LDFLAGS_OTHER:INTERNAL=
+PQXX_LIBDIR:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/lib
+PQXX_LIBRARIES:INTERNAL=pqxx
+PQXX_LIBRARY_DIRS:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/lib
+PQXX_LIBS:INTERNAL=
+PQXX_LIBS_L:INTERNAL=
+PQXX_LIBS_OTHER:INTERNAL=
+PQXX_LIBS_PATHS:INTERNAL=
+PQXX_MODULE_NAME:INTERNAL=libpqxx
+PQXX_PREFIX:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1
+PQXX_STATIC_CFLAGS:INTERNAL=-I/opt/homebrew/Cellar/libpqxx/7.10.1/include
+PQXX_STATIC_CFLAGS_I:INTERNAL=
+PQXX_STATIC_CFLAGS_OTHER:INTERNAL=
+PQXX_STATIC_INCLUDE_DIRS:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/include
+PQXX_STATIC_LDFLAGS:INTERNAL=-L/opt/homebrew/Cellar/libpqxx/7.10.1/lib;-lpqxx
+PQXX_STATIC_LDFLAGS_OTHER:INTERNAL=
+PQXX_STATIC_LIBDIR:INTERNAL=
+PQXX_STATIC_LIBRARIES:INTERNAL=pqxx
+PQXX_STATIC_LIBRARY_DIRS:INTERNAL=/opt/homebrew/Cellar/libpqxx/7.10.1/lib
+PQXX_STATIC_LIBS:INTERNAL=
+PQXX_STATIC_LIBS_L:INTERNAL=
+PQXX_STATIC_LIBS_OTHER:INTERNAL=
+PQXX_STATIC_LIBS_PATHS:INTERNAL=
+PQXX_VERSION:INTERNAL=7.10.1
+PQXX_libpqxx_INCLUDEDIR:INTERNAL=
+PQXX_libpqxx_LIBDIR:INTERNAL=
+PQXX_libpqxx_PREFIX:INTERNAL=
+PQXX_libpqxx_VERSION:INTERNAL=
 _OPENSSL_CFLAGS:INTERNAL=-I/opt/homebrew/Cellar/openssl@3/3.5.2/include
 _OPENSSL_CFLAGS_I:INTERNAL=
 _OPENSSL_CFLAGS_OTHER:INTERNAL=
@@ -451,11 +529,19 @@ _OPENSSL_openssl_INCLUDEDIR:INTERNAL=
 _OPENSSL_openssl_LIBDIR:INTERNAL=
 _OPENSSL_openssl_PREFIX:INTERNAL=
 _OPENSSL_openssl_VERSION:INTERNAL=
+__pkg_config_arguments_FMT:INTERNAL=REQUIRED;IMPORTED_TARGET;fmt
+__pkg_config_arguments_PQXX:INTERNAL=REQUIRED;IMPORTED_TARGET;libpqxx
 __pkg_config_arguments__OPENSSL:INTERNAL=QUIET;openssl
+__pkg_config_checked_FMT:INTERNAL=1
+__pkg_config_checked_PQXX:INTERNAL=1
 __pkg_config_checked__OPENSSL:INTERNAL=1
+//ADVANCED property for variable: pkgcfg_lib_FMT_fmt
+pkgcfg_lib_FMT_fmt-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: pkgcfg_lib_PQXX_pqxx
+pkgcfg_lib_PQXX_pqxx-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: pkgcfg_lib__OPENSSL_crypto
 pkgcfg_lib__OPENSSL_crypto-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: pkgcfg_lib__OPENSSL_ssl
 pkgcfg_lib__OPENSSL_ssl-ADVANCED:INTERNAL=1
-prefix_result:INTERNAL=/opt/homebrew/Cellar/openssl@3/3.5.2/lib
+prefix_result:INTERNAL=/opt/homebrew/Cellar/fmt/11.2.0/lib
 

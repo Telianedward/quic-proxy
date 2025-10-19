@@ -1,44 +1,104 @@
 [
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/auth.cpp.o -c /Users/xxx/qwen-ui/backend/src/auth.cpp",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o -c /Users/xxx/qwen-ui/backend/src/async/async_server.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/async/async_server.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/auth.cpp.o -c /Users/xxx/qwen-ui/backend/src/auth.cpp",
   "file": "/Users/xxx/qwen-ui/backend/src/auth.cpp",
   "output": "CMakeFiles/qwen-backend.dir/src/auth.cpp.o"
 },
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/handler.cpp",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/config.cpp.o -c /Users/xxx/qwen-ui/backend/src/config.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/config.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/config.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/content_handler.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/content_handler.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/handler.cpp",
   "file": "/Users/xxx/qwen-ui/backend/src/handler.cpp",
   "output": "CMakeFiles/qwen-backend.dir/src/handler.cpp.o"
 },
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o -c /Users/xxx/qwen-ui/backend/src/html_generator.cpp",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o -c /Users/xxx/qwen-ui/backend/src/html_generator.cpp",
   "file": "/Users/xxx/qwen-ui/backend/src/html_generator.cpp",
   "output": "CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o"
 },
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/main.cpp.o -c /Users/xxx/qwen-ui/backend/src/main.cpp",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/logger.cpp.o -c /Users/xxx/qwen-ui/backend/src/logger.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/logger.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/logger.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/main.cpp.o -c /Users/xxx/qwen-ui/backend/src/main.cpp",
   "file": "/Users/xxx/qwen-ui/backend/src/main.cpp",
   "output": "CMakeFiles/qwen-backend.dir/src/main.cpp.o"
 },
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/server.cpp.o -c /Users/xxx/qwen-ui/backend/src/server.cpp",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o -c \"/Users/xxx/qwen-ui/backend/src/server copy.cpp\"",
+  "file": "/Users/xxx/qwen-ui/backend/src/server copy.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o"
+},
+{
+  "directory": "/Users/xxx/quic-proxy/build",
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/server.cpp.o -c /Users/xxx/qwen-ui/backend/src/server.cpp",
   "file": "/Users/xxx/qwen-ui/backend/src/server.cpp",
   "output": "CMakeFiles/qwen-backend.dir/src/server.cpp.o"
 },
 {
   "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp",
-  "file": "/Users/xxx/qwen-ui/backend/src/web/html_parser.cpp",
-  "output": "CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o"
-},
-{
-  "directory": "/Users/xxx/quic-proxy/build",
-  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -g -std=gnu++20 -arch arm64 -o CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/web_client.cpp",
-  "file": "/Users/xxx/qwen-ui/backend/src/web/web_client.cpp",
-  "output": "CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o"
+  "command": "/usr/bin/c++  -I/Users/xxx/qwen-ui/backend/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include -isystem /opt/homebrew/Cellar/libpqxx/7.10.1/include -isystem /opt/homebrew/Cellar/fmt/11.2.0/include -g -std=c++2b -arch arm64 -o CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp",
+  "file": "/Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp",
+  "output": "CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o"
 }
 ]

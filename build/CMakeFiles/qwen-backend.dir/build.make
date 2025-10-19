@@ -72,10 +72,24 @@ include CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/codegen:
 .PHONY : CMakeFiles/qwen-backend.dir/codegen
 
+CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o: /Users/xxx/qwen-ui/backend/src/async/async_server.cpp
+CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o -MF CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o -c /Users/xxx/qwen-ui/backend/src/async/async_server.cpp
+
+CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/async/async_server.cpp > CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/async/async_server.cpp -o CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.s
+
 CMakeFiles/qwen-backend.dir/src/auth.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/src/auth.cpp.o: /Users/xxx/qwen-ui/backend/src/auth.cpp
 CMakeFiles/qwen-backend.dir/src/auth.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/qwen-backend.dir/src/auth.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/qwen-backend.dir/src/auth.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/auth.cpp.o -MF CMakeFiles/qwen-backend.dir/src/auth.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/auth.cpp.o -c /Users/xxx/qwen-ui/backend/src/auth.cpp
 
 CMakeFiles/qwen-backend.dir/src/auth.cpp.i: cmake_force
@@ -86,10 +100,122 @@ CMakeFiles/qwen-backend.dir/src/auth.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/auth.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/auth.cpp -o CMakeFiles/qwen-backend.dir/src/auth.cpp.s
 
+CMakeFiles/qwen-backend.dir/src/config.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/config.cpp.o: /Users/xxx/qwen-ui/backend/src/config.cpp
+CMakeFiles/qwen-backend.dir/src/config.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/qwen-backend.dir/src/config.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/config.cpp.o -MF CMakeFiles/qwen-backend.dir/src/config.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/config.cpp.o -c /Users/xxx/qwen-ui/backend/src/config.cpp
+
+CMakeFiles/qwen-backend.dir/src/config.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/config.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/config.cpp > CMakeFiles/qwen-backend.dir/src/config.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/config.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/config.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/config.cpp -o CMakeFiles/qwen-backend.dir/src/config.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o: /Users/xxx/qwen-ui/backend/src/content_handler.cpp
+CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o -MF CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/content_handler.cpp
+
+CMakeFiles/qwen-backend.dir/src/content_handler.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/content_handler.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/content_handler.cpp > CMakeFiles/qwen-backend.dir/src/content_handler.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/content_handler.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/content_handler.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/content_handler.cpp -o CMakeFiles/qwen-backend.dir/src/content_handler.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o: /Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp
+CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp > CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/SQLQueryBuilder.cpp -o CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o: /Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp
+CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp > CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/TransactionGuard.cpp -o CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o: /Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp
+CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp > CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/connection/ConnectionStringBuilder.cpp -o CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o: /Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp
+CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp > CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/db/DatabaseBuilder.cpp -o CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o: /Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp
+CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp > CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/insert/InsertBuilder.cpp -o CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.s
+
+CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o: /Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp
+CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o -MF CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o -c /Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp
+
+CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp > CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/database/table/TableBuilder.cpp -o CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.s
+
 CMakeFiles/qwen-backend.dir/src/handler.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/src/handler.cpp.o: /Users/xxx/qwen-ui/backend/src/handler.cpp
 CMakeFiles/qwen-backend.dir/src/handler.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/qwen-backend.dir/src/handler.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/qwen-backend.dir/src/handler.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/handler.cpp.o -MF CMakeFiles/qwen-backend.dir/src/handler.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/handler.cpp.o -c /Users/xxx/qwen-ui/backend/src/handler.cpp
 
 CMakeFiles/qwen-backend.dir/src/handler.cpp.i: cmake_force
@@ -103,7 +229,7 @@ CMakeFiles/qwen-backend.dir/src/handler.cpp.s: cmake_force
 CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o: /Users/xxx/qwen-ui/backend/src/html_generator.cpp
 CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o -MF CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o -c /Users/xxx/qwen-ui/backend/src/html_generator.cpp
 
 CMakeFiles/qwen-backend.dir/src/html_generator.cpp.i: cmake_force
@@ -114,10 +240,24 @@ CMakeFiles/qwen-backend.dir/src/html_generator.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/html_generator.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/html_generator.cpp -o CMakeFiles/qwen-backend.dir/src/html_generator.cpp.s
 
+CMakeFiles/qwen-backend.dir/src/logger.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/logger.cpp.o: /Users/xxx/qwen-ui/backend/src/logger.cpp
+CMakeFiles/qwen-backend.dir/src/logger.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/qwen-backend.dir/src/logger.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/logger.cpp.o -MF CMakeFiles/qwen-backend.dir/src/logger.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/logger.cpp.o -c /Users/xxx/qwen-ui/backend/src/logger.cpp
+
+CMakeFiles/qwen-backend.dir/src/logger.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/logger.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/logger.cpp > CMakeFiles/qwen-backend.dir/src/logger.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/logger.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/logger.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/logger.cpp -o CMakeFiles/qwen-backend.dir/src/logger.cpp.s
+
 CMakeFiles/qwen-backend.dir/src/main.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/src/main.cpp.o: /Users/xxx/qwen-ui/backend/src/main.cpp
 CMakeFiles/qwen-backend.dir/src/main.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/qwen-backend.dir/src/main.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/qwen-backend.dir/src/main.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/main.cpp.o -MF CMakeFiles/qwen-backend.dir/src/main.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/main.cpp.o -c /Users/xxx/qwen-ui/backend/src/main.cpp
 
 CMakeFiles/qwen-backend.dir/src/main.cpp.i: cmake_force
@@ -128,10 +268,24 @@ CMakeFiles/qwen-backend.dir/src/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/main.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/main.cpp -o CMakeFiles/qwen-backend.dir/src/main.cpp.s
 
+CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o: /Users/xxx/qwen-ui/backend/src/server\ copy.cpp
+CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o -MF CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o -c "/Users/xxx/qwen-ui/backend/src/server copy.cpp"
+
+CMakeFiles/qwen-backend.dir/src/server_copy.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/server_copy.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/xxx/qwen-ui/backend/src/server copy.cpp" > CMakeFiles/qwen-backend.dir/src/server_copy.cpp.i
+
+CMakeFiles/qwen-backend.dir/src/server_copy.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/server_copy.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/xxx/qwen-ui/backend/src/server copy.cpp" -o CMakeFiles/qwen-backend.dir/src/server_copy.cpp.s
+
 CMakeFiles/qwen-backend.dir/src/server.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
 CMakeFiles/qwen-backend.dir/src/server.cpp.o: /Users/xxx/qwen-ui/backend/src/server.cpp
 CMakeFiles/qwen-backend.dir/src/server.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/qwen-backend.dir/src/server.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/qwen-backend.dir/src/server.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/server.cpp.o -MF CMakeFiles/qwen-backend.dir/src/server.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/server.cpp.o -c /Users/xxx/qwen-ui/backend/src/server.cpp
 
 CMakeFiles/qwen-backend.dir/src/server.cpp.i: cmake_force
@@ -142,59 +296,67 @@ CMakeFiles/qwen-backend.dir/src/server.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/server.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/server.cpp -o CMakeFiles/qwen-backend.dir/src/server.cpp.s
 
-CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
-CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o: /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp
-CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o -MF CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp
+CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
+CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o: /Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp
+CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o -MF CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp
 
-CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp > CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.i
+CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp > CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.i
 
-CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/web/html_parser.cpp -o CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.s
-
-CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o: CMakeFiles/qwen-backend.dir/flags.make
-CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o: /Users/xxx/qwen-ui/backend/src/web/web_client.cpp
-CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o: CMakeFiles/qwen-backend.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o -MF CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o.d -o CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o -c /Users/xxx/qwen-ui/backend/src/web/web_client.cpp
-
-CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/xxx/qwen-ui/backend/src/web/web_client.cpp > CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.i
-
-CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/web/web_client.cpp -o CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.s
+CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/xxx/qwen-ui/backend/src/web/html_renderer.cpp -o CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.s
 
 # Object files for target qwen-backend
 qwen__backend_OBJECTS = \
+"CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o" \
 "CMakeFiles/qwen-backend.dir/src/auth.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/config.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o" \
 "CMakeFiles/qwen-backend.dir/src/handler.cpp.o" \
 "CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/logger.cpp.o" \
 "CMakeFiles/qwen-backend.dir/src/main.cpp.o" \
+"CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o" \
 "CMakeFiles/qwen-backend.dir/src/server.cpp.o" \
-"CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o" \
-"CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o"
+"CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o"
 
 # External object files for target qwen-backend
 qwen__backend_EXTERNAL_OBJECTS =
 
+qwen-backend: CMakeFiles/qwen-backend.dir/src/async/async_server.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/src/auth.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/config.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/content_handler.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/SQLQueryBuilder.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/TransactionGuard.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/connection/ConnectionStringBuilder.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/db/DatabaseBuilder.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/insert/InsertBuilder.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/database/table/TableBuilder.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/src/handler.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/src/html_generator.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/logger.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/src/main.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/server_copy.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/src/server.cpp.o
-qwen-backend: CMakeFiles/qwen-backend.dir/src/web/html_parser.cpp.o
-qwen-backend: CMakeFiles/qwen-backend.dir/src/web/web_client.cpp.o
+qwen-backend: CMakeFiles/qwen-backend.dir/src/web/html_renderer.cpp.o
 qwen-backend: CMakeFiles/qwen-backend.dir/build.make
 qwen-backend: /opt/homebrew/Cellar/openssl@3/3.5.2/lib/libssl.dylib
 qwen-backend: /opt/homebrew/Cellar/openssl@3/3.5.2/lib/libcrypto.dylib
+qwen-backend: /opt/homebrew/Cellar/libpqxx/7.10.1/lib/libpqxx.dylib
+qwen-backend: /opt/homebrew/Cellar/fmt/11.2.0/lib/libfmt.dylib
 qwen-backend: CMakeFiles/qwen-backend.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Linking CXX executable qwen-backend"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/xxx/quic-proxy/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Linking CXX executable qwen-backend"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/qwen-backend.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
