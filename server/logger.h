@@ -30,6 +30,9 @@
     #include <unistd.h>
 #endif
 
+// Для fmt::format
+#include <fmt/core.h>
+
 /**
  * @brief Уровни логирования.
  */
@@ -101,21 +104,42 @@ bool is_stdout_tty() {
 /**
  * @brief Получает текущую временную метку в формате "ГГГГ-ММ-ДД ЧЧ:ММ:СС".
  * @return Строка с временной меткой в локальном часовом поясе.
- * @warning Использует std::localtime, который не является потокобезопасным в некоторых реализациях.
- *          Для многопоточных приложений рекомендуется использовать std::localtime_s (C11) или аналоги.
+ * @throws std::runtime_error При ошибке форматирования времени.
+ * @warning Использует потокобезопасные функции (localtime_r / localtime_s).
  */
 std::string get_timestamp() {
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    // Потенциально небезопасно в многопоточной среде — см. предупреждение выше
-    auto local_time = *std::localtime(&time_t);
+    try {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
 
-    char buffer[20];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_time);
-    return std::string(buffer);
+#ifdef _WIN32
+        std::tm local_time;
+        if (std::localtime_s(&local_time, &time_t) != 0) {
+            throw std::runtime_error("localtime_s failed");
+        }
+#else
+        std::tm local_time;
+        if (::localtime_r(&time_t, &local_time) == nullptr) {
+            throw std::runtime_error("localtime_r failed");
+        }
+#endif
+
+        char buffer[20];
+        if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_time) == 0) {
+            throw std::runtime_error("strftime failed");
+        }
+        return std::string(buffer);
+    } catch (const std::exception& e) {
+        return "TIMESTAMP_ERROR";
+    }
 }
 
-// Глобальный мьютекс для потокобезопасности (опционально)
+/**
+ * @brief Мьютекс для потокобезопасности логгера.
+ *
+ * Используется для синхронизации вывода в cerr.
+ * Может быть отключен, если логгер используется в однопоточном режиме.
+ */
 std::mutex log_mutex;
 
 } // namespace
@@ -127,18 +151,15 @@ std::mutex log_mutex;
  *
  * @tparam Args Типы аргументов для форматирования.
  * @param level Уровень логирования.
- * @param file Имя исходного файла (обычно __FILE__).
- * @param line Номер строки (обычно __LINE__).
- * @param func Имя функции (обычно __func__).
- * @param format_str Строка формата (совместима с fmt::format или std::format).
+ * @param location Информация о месте вызова (обычно std::source_location::current()).
+ * @param format_str Строка формата (совместима с fmt::format).
  * @param args Аргументы для подстановки в строку формата.
+ * @throws Никаких исключений — функция не выбрасывает.
  */
 template<typename... Args>
 void log_impl(LogLevel level,
-              const char* file,
-              int line,
-              const char* func,
-              const std::string& format_str,
+              const std::source_location& location = std::source_location::current(),
+              std::string_view format_str = "",
               Args&&... args) {
     const bool use_color = is_stdout_tty();
     const char* color_start = use_color ? get_color_code(level) : "";
@@ -155,8 +176,8 @@ void log_impl(LogLevel level,
         }
     }();
 
-    // Форматируем сообщение
-    std::string message = std::vformat(format_str, std::make_format_args(args...));
+    // Форматируем сообщение — используем fmt::runtime, чтобы избежать ошибки "not a constant expression"
+    std::string message = fmt::format(fmt::runtime(format_str), args...);
 
     // Блокировка мьютекса (опционально, если нужна потокобезопасность)
     std::lock_guard<std::mutex> lock(log_mutex);
@@ -165,7 +186,7 @@ void log_impl(LogLevel level,
     std::cerr << color_start
               << "[" << get_timestamp() << "] "
               << get_emoji(level) << "[" << level_name << "] "
-              << "[" << file << ":" << line << " in " << func << "] "
+              << "[" << location.file_name() << ":" << location.line() << " in " << location.function_name() << "] "
               << message
               << color_reset
               << std::endl;
@@ -180,11 +201,12 @@ void log_impl(LogLevel level,
  * @tparam Args Типы аргументов для форматирования.
  * @param format_str Строка формата.
  * @param args Аргументы для подстановки.
+ * @throws Никаких исключений — функция не выбрасывает.
  */
 template<typename... Args>
 void log_raw_impl(const std::string& format_str, Args&&... args) {
     // Форматируем сообщение
-    std::string message = std::vformat(format_str, std::make_format_args(args...));
+    std::string message = fmt::format(fmt::runtime(format_str), args...);
 
     // Выводим в cerr
     std::cerr << message << std::endl;
@@ -192,33 +214,43 @@ void log_raw_impl(const std::string& format_str, Args&&... args) {
 
 /**
  * @brief Макрос для логирования уровня DEBUG.
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
  */
-#define LOG_DEBUG(...) log_impl(LogLevel::DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_DEBUG(...) log_impl(LogLevel::DEBUG, std::source_location::current(), __VA_ARGS__)
 
 /**
  * @brief Макрос для логирования уровня INFO.
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
  */
-#define LOG_INFO(...)  log_impl(LogLevel::INFO,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_INFO(...)  log_impl(LogLevel::INFO,  std::source_location::current(), __VA_ARGS__)
 
 /**
  * @brief Макрос для логирования уровня WARN.
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
  */
-#define LOG_WARN(...)  log_impl(LogLevel::WARN,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_WARN(...)  log_impl(LogLevel::WARN,  std::source_location::current(), __VA_ARGS__)
 
 /**
  * @brief Макрос для логирования уровня ERROR.
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
  */
-#define LOG_ERROR(...) log_impl(LogLevel::ERROR, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_ERROR(...) log_impl(LogLevel::ERROR, std::source_location::current(), __VA_ARGS__)
 
 /**
  * @brief Макрос для логирования уровня SUCCESS.
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
  */
-#define LOG_SUCCESS(...) log_impl(LogLevel::SUCCESS, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_SUCCESS(...) log_impl(LogLevel::SUCCESS, std::source_location::current(), __VA_ARGS__)
 
 /**
  * @brief Макрос для "сырого" логирования без контекста (время, файл, функция и т.д.).
@@ -226,7 +258,8 @@ void log_raw_impl(const std::string& format_str, Args&&... args) {
  * Используется, когда сообщение уже содержит всю необходимую информацию
  * или поступает из внешней библиотеки.
  *
- * @param ... Аргументы для форматирования (совместимы с std::format).
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
  * @warning Не добавляет временные метки, уровни или эмодзи — только то, что передано.
  */
 #define LOG_RAW(...) log_raw_impl(__VA_ARGS__)
