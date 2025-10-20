@@ -13,7 +13,7 @@
  */
 
 #include "quic_udp_proxy.hpp"
-
+#include "server/logger.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
