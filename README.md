@@ -94,10 +94,8 @@ rm -rf quic_proxy
 # Запуск (только от root — нужен доступ к порту 443)
 sudo ./quic_proxy
 # Сделайте его исполняемым:
-```bash
+cat >  install_quic_proxy.sh
+
 chmod +x install_quic_proxy.sh
-```
 # Запустите скрипт с правами root:
-```bash
 sudo ./install_quic_proxy.sh
-```
