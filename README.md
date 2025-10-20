@@ -29,6 +29,7 @@ ls -la
 ```
 
 
+
 Если нет `quic_proxy` — собери:
 ```bash
 g++ -O2 -o quic_proxy quic_udp_proxy.cpp -pthread
@@ -92,3 +93,11 @@ g++ -O2 -std=c++23 -I. -o quic_proxy quic_udp_proxy.cpp -pthread
 rm -rf quic_proxy
 # Запуск (только от root — нужен доступ к порту 443)
 sudo ./quic_proxy
+# Сделайте его исполняемым:
+```bash
+chmod +x install_quic_proxy.sh
+```
+# Запустите скрипт с правами root:
+```bash
+sudo ./install_quic_proxy.sh
+```

@@ -30,7 +30,7 @@
 #include <cstdint>   // Для uint8_t, uint16_t, uint32_t
 #include <algorithm> // Для std::min, std::max
 #include <cstdlib>   // Для std::srand, std::rand
-
+#include "server/logger.h"
 
 /**
  * @brief Хеш-функция для std::vector<uint8_t>
@@ -51,6 +51,7 @@ struct VectorEqual
 {
     bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept;
 };
+
 
 /**
  * @brief Ключ клиента: IP, порт и первые 8 байт SCID

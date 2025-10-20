@@ -67,6 +67,7 @@ size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
     }
     return result;
 }
+
 int set_nonblocking(int fd) noexcept
 {
     int flags = fcntl(fd, F_GETFL, 0);
