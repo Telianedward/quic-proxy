@@ -1,69 +1,74 @@
-#!/bin/bash
+cmake_minimum_required(VERSION 3.26)
 
-# Убедитесь, что скрипт запущен с правами root (или через sudo)
-if [ "$EUID" -ne 0 ]; then
-    echo "Пожалуйста, запустите этот скрипт с правами root (sudo)."
-    exit 1
-fi
+# Устанавливаем политику для VERSION
+if(POLICY CMP0048)
+    cmake_policy(SET CMP0048 NEW)
+endif()
 
-# Путь к каталогу
-QUIC_PROXY_DIR="/opt/quic-proxy"
+# Устанавливаем версию проекта
+if(NOT DEFINED APP_VERSION)
+    set(APP_VERSION "dev" CACHE STRING "Версия проекта")
+endif()
 
-echo "=== Начинаем установку и запуск quic-proxy ==="
+# Проект
+project(quic-proxy VERSION ${APP_VERSION} LANGUAGES CXX)
 
-# 1. Удаляем старую версию (если есть)
-echo "Удаляем предыдущую версию..."
-rm -rf "$QUIC_PROXY_DIR"
+message(STATUS "🏗️ Собираем quic-proxy v${APP_VERSION}")
+message(STATUS "🔍 Текущая директория: ${CMAKE_CURRENT_SOURCE_DIR}")
 
-# 2. Клонируем репозиторий
-echo "Клонируем репозиторий..."
-git clone https://github.com/Telianedward/quic-proxy.git "$QUIC_PROXY_DIR"
+# Настройка стандарта C++
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 3. Переходим в каталог
-cd "$QUIC_PROXY_DIR" || { echo "Не удалось перейти в каталог $QUIC_PROXY_DIR"; exit 1; }
+# Включаем оптимизацию и отладку
+set(CMAKE_BUILD_TYPE Release) # Или Debug, если нужно
 
-# 4. Создаём директорию сборки и собираем проект через CMake
-echo "Создаём директорию сборки и собираем проект..."
-mkdir -p build && cd build
+# Добавляем флаги компиляции
+add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 
-# Запускаем CMake (устанавливаем стандарт C++23 и компилятор g++-12)
-cmake .. -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_CXX_STANDARD=23
+# Источники
+add_executable(quic_proxy quic_udp_proxy.cpp)
 
-# Собираем проект
-make -j$(nproc)
+# Линковка: pthread
+target_link_libraries(quic_proxy PRIVATE pthread)
 
-# Проверяем, успешно ли прошла компиляция
-if [ $? -ne 0 ]; then
-    echo "❌ Ошибка компиляции! Скрипт остановлен."
-    exit 1
-fi
+# Установка исполняемого файла в /opt/quic-proxy/
+install(TARGETS quic_proxy
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
+        PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ)
 
-# 5. Устанавливаем бинарник и сервис через CMake
-echo "Устанавливаем бинарник и сервис..."
-sudo make install
+# Установка systemd-сервиса
+install(FILES quic-proxy.service
+        DESTINATION /etc/systemd/system
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 
-# 6. Перезагружаем systemd
-echo "Перезагружаем systemd..."
-systemctl daemon-reload
+# Цель для перезагрузки systemd
+add_custom_target(reload-systemd
+    COMMAND systemctl daemon-reload
+    COMMENT "🔄 Перезагружаем systemd..."
+)
 
-# 7. Включаем службу (запуск при загрузке)
-echo "Включаем службу quic-proxy..."
-systemctl enable quic-proxy.service
+# Цель для включения и запуска сервиса
+add_custom_target(enable-and-start-service
+    COMMAND systemctl enable quic-proxy.service
+    COMMAND systemctl start quic-proxy.service
+    COMMENT "🚀 Включаем и запускаем сервис quic-proxy..."
+)
 
-# 8. Запускаем службу
-echo "Запускаем службу quic-proxy..."
-systemctl start quic-proxy.service
+# Цель для просмотра логов
+add_custom_target(journalctl
+    COMMAND journalctl -u quic-proxy.service -f
+    COMMENT "📝 Показываем логи службы quic-proxy (Ctrl+C для выхода)..."
+)
 
-# 9. Перезапускаем службу (на всякий случай)
-echo "Перезапускаем службу quic-proxy..."
-systemctl restart quic-proxy.service
-
-# 10. Показываем статус службы
-echo "Статус службы quic-proxy:"
-systemctl status quic-proxy.service
-
-# 11. Показываем логи в реальном времени
-echo "=== Логи службы quic-proxy (Ctrl+C для выхода) ==="
-journalctl -u quic-proxy.service -f
-
-echo "=== Установка и запуск завершены ==="
+# Цель для полной установки и запуска
+add_custom_target(install-and-run ALL
+    DEPENDS quic_proxy
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}
+    COMMAND ${CMAKE_COMMAND} --build . --target install
+    COMMAND ${CMAKE_COMMAND} --build . --target reload-systemd
+    COMMAND ${CMAKE_COMMAND} --build . --target enable-and-start-service
+    COMMAND ${CMAKE_COMMAND} --build . --target journalctl
+    COMMENT "✅ Полная установка и запуск quic-proxy завершены."
+)

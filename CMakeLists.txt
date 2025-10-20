@@ -7,7 +7,7 @@ endif()
 
 # Устанавливаем версию проекта
 if(NOT DEFINED APP_VERSION)
-    set(APP_VERSION "dev" CACHE STRING "Версия проекта")
+    set(APP_VERSION "0.1.0" CACHE STRING "Версия проекта") # Используем числовую версию
 endif()
 
 # Проект
