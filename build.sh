@@ -38,28 +38,28 @@ fi
 echo "Устанавливаем бинарник и сервис..."
 sudo make install
 
-# 6. Перезагружаем systemd
-echo "Перезагружаем systemd..."
-systemctl daemon-reload
+# # 6. Перезагружаем systemd
+# echo "Перезагружаем systemd..."
+# systemctl daemon-reload
 
-# 7. Включаем службу (запуск при загрузке)
-echo "Включаем службу quic-proxy..."
-systemctl enable quic-proxy.service
+# # 7. Включаем службу (запуск при загрузке)
+# echo "Включаем службу quic-proxy..."
+# systemctl enable quic-proxy.service
 
-# 8. Запускаем службу
-echo "Запускаем службу quic-proxy..."
-systemctl start quic-proxy.service
+# # 8. Запускаем службу
+# echo "Запускаем службу quic-proxy..."
+# systemctl start quic-proxy.service
 
 # 9. Перезапускаем службу (на всякий случай)
 echo "Перезапускаем службу quic-proxy..."
 systemctl restart quic-proxy.service
 
-# 10. Показываем статус службы
-echo "Статус службы quic-proxy:"
-systemctl status quic-proxy.service
+# # 10. Показываем статус службы
+# echo "Статус службы quic-proxy:"
+# systemctl status quic-proxy.service
 
-# 11. Показываем логи в реальном времени
-echo "=== Логи службы quic-proxy (Ctrl+C для выхода) ==="
-journalctl -u quic-proxy.service -f
+# # 11. Показываем логи в реальном времени
+# echo "=== Логи службы quic-proxy (Ctrl+C для выхода) ==="
+# journalctl -u quic-proxy.service -f
 
 echo "=== Установка и запуск завершены ==="
