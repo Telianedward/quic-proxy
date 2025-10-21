@@ -30,6 +30,7 @@
 #include <cstdint>   // Для uint8_t, uint16_t, uint32_t
 #include <algorithm> // Для std::min, std::max
 #include <cstdlib>   // Для std::srand, std::rand
+#include "server/logger.h"
 
 /**
  * @brief Хеш-функция для std::vector<uint8_t>
@@ -51,6 +52,7 @@ struct VectorEqual
     bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept;
 };
 
+
 /**
  * @brief Ключ клиента: IP, порт и первые 8 байт SCID
  *
@@ -61,7 +63,7 @@ struct ClientKey
     uint32_t addr;          ///< IPv4-адрес клиента
     uint16_t port;          ///< Порт клиента
     uint8_t cid[8];         ///< Первые 8 байт исходного SCID
-
+    std::vector<uint8_t> token; ///< Токен из Retry-пакета
     bool operator==(const ClientKey &other) const noexcept;
 };
 
@@ -90,7 +92,7 @@ static_assert(MAX_PACKET_SIZE <= 65536, "MAX_PACKET_SIZE должен быть <
  *
  * Используется для восстановления оригинального SCID при ответе от сервера.
  */
-extern std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
+extern std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 
 /**
  * @brief Обратный маппинг: локальный CID → ключ клиента.
@@ -155,7 +157,7 @@ void signal_handler(int sig);
  */
 
 #include "quic_udp_proxy.hpp"
-
+#include "server/logger.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -165,12 +167,13 @@ void signal_handler(int sig);
 #include <cerrno>
 #include <sys/select.h>
 #include <cstdio>
-#include <ctime> // Для std::time(nullptr)
+#include <ctime>  // Для std::time(nullptr)
 #include <random> // Для std::mt19937, std::uniform_int_distribution
 
 // === Инициализация глобальных переменных ===
 
-std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
+// Исправлено: session_map теперь хранит ClientKey → ClientKey
+std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 
 // === Реализация функций ===
@@ -194,14 +197,21 @@ bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<ui
 bool ClientKey::operator==(const ClientKey &other) const noexcept
 {
     return addr == other.addr && port == other.port &&
-           std::memcmp(cid, other.cid, 8) == 0;
+           std::memcmp(cid, other.cid, 8) == 0 &&
+           token == other.token;
 }
 
 size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
 {
-    return std::hash<uint32_t>()(k.addr) ^
-           (std::hash<uint16_t>()(k.port) << 1) ^
-           std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
+    size_t result = std::hash<uint32_t>()(k.addr) ^
+                   (std::hash<uint16_t>()(k.port) << 1) ^
+                   std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
+    // Хешируем токен
+    for (uint8_t b : k.token)
+    {
+        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
+    }
+    return result;
 }
 
 int set_nonblocking(int fd) noexcept
@@ -386,7 +396,7 @@ int main()
             ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&client_addr, &client_len);
 
-            if (n < 0 || n >= MAX_PACKET_SIZE)
+         if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                     std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom client failed: %s\n", __LINE__, strerror(errno));
@@ -413,6 +423,36 @@ int main()
                 continue;
             }
 
+            // === Обработка Retry-пакета ===
+            if (n >= 9 && static_cast<unsigned char>(buf[0]) == 0xF0)
+            {
+                // Это Retry-пакет
+                LOG_INFO("Received Retry packet");
+                // Извлекаем токен из Retry-пакета
+                size_t token_offset = 9;
+                size_t token_len = buf[token_offset];
+                std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
+                // Создаём ключ на основе IP и порта клиента
+                ClientKey key{};
+                key.addr = client_addr.sin_addr.s_addr;
+                key.port = client_addr.sin_port;
+                // Первые 8 байт после токена — это SCID (используем их как CID)
+                std::memset(key.cid, 0, 8);
+                std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
+                // Сохраняем токен в session_map
+                key.token = token;
+                session_map[key] = key; // Записываем весь объект ClientKey
+                // Пересылаем Retry-пакет клиенту
+                ssize_t sent = sendto(udp_fd, buf, n, 0,
+                                      (struct sockaddr *)&client_addr, sizeof(client_addr));
+                if (sent < 0) {
+                    LOG_ERROR("sendto client failed: {}", strerror(errno));
+                } else {
+                    LOG_INFO("Retry packet sent to client");
+                }
+                continue; // Пропускаем дальнейшую обработку этого пакета
+            }
+
             uint32_t version = (buf[1] << 24) | (buf[2] << 16) | (buf[3] << 8) | buf[4];
             size_t pos = 5;
             uint8_t dcil = buf[pos];
@@ -427,7 +467,8 @@ int main()
                 continue;
             }
 
-            uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
+            // uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
+
             uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 2 + dcil]);
 
             ClientKey key{};
@@ -441,7 +482,7 @@ int main()
             if (it == session_map.end())
             {
                 local_cid = generate_local_cid();
-                session_map[key] = local_cid;
+                session_map[key] = key; // Записываем весь объект ClientKey
                 reverse_map[local_cid] = key;
                 std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → LocalCID:", __LINE__, client_ip.c_str(), client_port);
                 for (uint8_t b : local_cid)
@@ -450,7 +491,7 @@ int main()
             }
             else
             {
-                local_cid = it->second;
+                local_cid.assign(it->second.cid, it->second.cid + 8);// Используем CID из сохранённого ключа
                 std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse LocalCID:", __LINE__);
                 for (uint8_t b : local_cid)
                     printf("%02x", b);
@@ -458,8 +499,21 @@ int main()
             }
 
             // === МОДИФИКАЦИЯ ПАКЕТА: SCIL = 8, SCID = LocalCID ===
-            buf[5] = (buf[5] & 0xF0) | 8; // Устанавливаем SCIL = 8
-            std::memcpy(scid, local_cid.data(), 8); // Заменяем SCID на LocalCID
+            if (scil > 20)
+            {
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректный SCIL=%d, устанавливаем SCIL=8\n", __LINE__, scil);
+                scil = 8;
+            }
+            buf[5] = (buf[5] & 0xF0) | 8;           // Устанавливаем SCIL = 8
+            std::memcpy(scid, local_cid.data(), 8);   // Заменяем SCID на LocalCID
+            // Добавляем токен в пакет
+            if (it != session_map.end() && it->second.token.size() > 0)
+            {
+                // Вставляем токен в пакет
+                size_t token_offset = 9;
+                buf[token_offset] = it->second.token.size();
+                std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
+            }
 
             ssize_t sent = sendto(wg_fd, buf, n, 0,
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
@@ -479,7 +533,7 @@ int main()
             ssize_t n = recvfrom(wg_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&backend_addr, &backend_len);
 
-            if (n < 0 || n >= MAX_PACKET_SIZE)
+            if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                     std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom backend failed: %s\n", __LINE__, strerror(errno));
@@ -492,11 +546,49 @@ int main()
 
             if (n < 6)
             {
-                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Пакет слишком короткий\n", __LINE__);
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Слишком короткий пакет (%zd байт)\n", __LINE__, n);
                 continue;
             }
 
             uint8_t packet_type = buf[0];
+            // === Обработка Retry-пакета ===
+            if ((packet_type & 0xC0) == 0xC0)
+            { // Это Long Header
+                // Проверяем, является ли пакет Retry
+                if (buf[5] == 0x00 && buf[6] == 0x00 && buf[7] == 0x00 && buf[8] == 0x00)
+                {
+                    // Это Retry-пакет
+                    LOG_INFO("Received Retry packet");
+                    // Извлекаем токен из Retry-пакета
+                    size_t token_offset = 9;
+                    size_t token_len = buf[token_offset];
+                    std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
+                    // Создаём ключ на основе IP и порта клиента (из client_addr)
+                    ClientKey key{};
+                    key.addr = client_addr.sin_addr.s_addr;
+                    key.port = client_addr.sin_port;
+                    // Первые 8 байт после токена — это SCID (используем их как CID)
+                    std::memset(key.cid, 0, 8);
+                    std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
+                    // Сохраняем токен в session_map
+                    key.token = token;
+                    session_map[key] = key; // Записываем весь объект ClientKey
+                    // Пересылаем Retry-пакет клиенту
+                    ssize_t sent = sendto(udp_fd, buf, n, 0,
+                                          (struct sockaddr *)&client_addr, sizeof(client_addr));
+                    if (sent < 0)
+                    {
+                        LOG_ERROR("sendto client failed: {}", strerror(errno));
+                    }
+                    else
+                    {
+                        LOG_INFO("Retry packet sent to client");
+                    }
+                    continue; // Пропускаем дальнейшую обработку этого пакета
+                }
+            }
+            // === Конец обработки Retry-пакета ===
+
             if ((packet_type & 0xC0) != 0xC0)
             {
                 std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Short Header — пропускаем\n", __LINE__);
@@ -556,3 +648,268 @@ int main()
         ::close(wg_fd);
     return 0;
 }
+/**
+ * @file logger.hpp
+ * @brief Логгер для проекта на C++20/23 с поддержкой цветов и автоматического захвата контекста.
+ *
+ * Предоставляет удобный интерфейс для логирования с уровнями (DEBUG, INFO, WARN, ERROR, SUCCESS),
+ * автоматическим добавлением файла, строки, функции и временной метки.
+ * Поддерживает цветной вывод в терминале (ANSI escape codes) и эмодзи для визуального различения уровней.
+ * Также предоставляет LOG_RAW для прямого вывода без контекста (например, для внешних библиотек).
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-09-29
+ * @version 1.0
+ * @license MIT
+ */
+
+#pragma once
+
+#include <string>
+#include <source_location>
+#include <chrono>
+#include <iostream>
+#include <iomanip>
+#include <mutex>
+
+#ifdef _WIN32
+    #include <io.h>
+    #include <fcntl.h>
+#else
+    #include <unistd.h>
+#endif
+
+// Для fmt::format
+#include <fmt/core.h>
+
+/**
+ * @brief Уровни логирования.
+ */
+enum class LogLevel {
+    DEBUG,   ///< Отладочная информация (низкий приоритет)
+    INFO,    ///< Общая информационная запись
+    WARN,    ///< Предупреждение (возможная проблема)
+    ERROR,   ///< Ошибка (нарушение нормального потока)
+    SUCCESS  ///< Успешное завершение операции (визуально выделяется)
+};
+
+/**
+ * @brief Внутреннее пространство имён для вспомогательных функций логгера.
+ *
+ * Все функции имеют внутреннюю линковку (static linkage) благодаря анонимному namespace.
+ */
+namespace {
+
+/**
+ * @brief Возвращает ANSI-код цвета для заданного уровня логирования.
+ * @param level Уровень логирования.
+ * @return Указатель на строку с ANSI-кодом цвета.
+ */
+const char* get_color_code(LogLevel level) {
+    switch (level) {
+        case LogLevel::DEBUG:   return "\033[36m"; // Cyan
+        case LogLevel::INFO:    return "\033[34m"; // Blue
+        case LogLevel::WARN:    return "\033[33m"; // Yellow
+        case LogLevel::ERROR:   return "\033[31m"; // Red
+        case LogLevel::SUCCESS: return "\033[32m"; // Green
+        default:                return "\033[0m";
+    }
+}
+
+/**
+ * @brief Возвращает эмодзи, соответствующий уровню логирования.
+ * @param level Уровень логирования.
+ * @return Указатель на строковый литерал с эмодзи в кодировке UTF-8.
+ * @warning Требуется поддержка UTF-8 в терминале для корректного отображения.
+ */
+const char* get_emoji(LogLevel level) {
+    switch (level) {
+        case LogLevel::DEBUG:   return "💟";
+        case LogLevel::INFO:    return "🔵";
+        case LogLevel::WARN:    return "⚠️";
+        case LogLevel::ERROR:   return "❌";
+        case LogLevel::SUCCESS: return "✅";
+        default:                return "";
+    }
+}
+
+/**
+ * @brief ANSI-код для сброса цвета текста в терминале.
+ */
+const char* reset_color = "\033[0m";
+
+/**
+ * @brief Проверяет, является ли stdout терминалом.
+ * @return true, если stdout подключён к TTY.
+ */
+bool is_stdout_tty() {
+#ifdef _WIN32
+    return _isatty(_fileno(stdout));
+#else
+    return isatty(fileno(stdout));
+#endif
+}
+
+/**
+ * @brief Получает текущую временную метку в формате "ГГГГ-ММ-ДД ЧЧ:ММ:СС".
+ * @return Строка с временной меткой в локальном часовом поясе.
+ * @throws std::runtime_error При ошибке форматирования времени.
+ * @warning Использует потокобезопасные функции (localtime_r / localtime_s).
+ */
+std::string get_timestamp() {
+    try {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+
+#ifdef _WIN32
+        std::tm local_time;
+        if (std::localtime_s(&local_time, &time_t) != 0) {
+            throw std::runtime_error("localtime_s failed");
+        }
+#else
+        std::tm local_time;
+        if (::localtime_r(&time_t, &local_time) == nullptr) {
+            throw std::runtime_error("localtime_r failed");
+        }
+#endif
+
+        char buffer[20];
+        if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_time) == 0) {
+            throw std::runtime_error("strftime failed");
+        }
+        return std::string(buffer);
+    } catch (const std::exception& e) {
+        return "TIMESTAMP_ERROR";
+    }
+}
+
+/**
+ * @brief Мьютекс для потокобезопасности логгера.
+ *
+ * Используется для синхронизации вывода в cerr.
+ * Может быть отключен, если логгер используется в однопоточном режиме.
+ */
+std::mutex log_mutex;
+
+} // namespace
+
+/**
+ * @brief Основная шаблонная функция логирования с контекстом.
+ *
+ * Не вызывайте напрямую — используйте макросы LOG_DEBUG, LOG_INFO и т.д.
+ *
+ * @tparam Args Типы аргументов для форматирования.
+ * @param level Уровень логирования.
+ * @param location Информация о месте вызова (обычно std::source_location::current()).
+ * @param format_str Строка формата (совместима с fmt::format).
+ * @param args Аргументы для подстановки в строку формата.
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+template<typename... Args>
+void log_impl(LogLevel level,
+              const std::source_location& location = std::source_location::current(),
+              std::string_view format_str = "",
+              Args&&... args) {
+    const bool use_color = is_stdout_tty();
+    const char* color_start = use_color ? get_color_code(level) : "";
+    const char* color_reset = use_color ? reset_color : "";
+
+    const char* level_name = [&]() -> const char* {
+        switch (level) {
+            case LogLevel::DEBUG:   return "DEBUG";
+            case LogLevel::INFO:    return "INFO";
+            case LogLevel::WARN:    return "WARN";
+            case LogLevel::ERROR:   return "ERROR";
+            case LogLevel::SUCCESS: return "SUCCESS";
+            default:                return "UNKNOWN";
+        }
+    }();
+
+    // Форматируем сообщение — используем fmt::runtime, чтобы избежать ошибки "not a constant expression"
+    std::string message = fmt::format(fmt::runtime(format_str), args...);
+
+    // Блокировка мьютекса (опционально, если нужна потокобезопасность)
+    std::lock_guard<std::mutex> lock(log_mutex);
+
+    // Выводим в cerr
+    std::cerr << color_start
+              << "[" << get_timestamp() << "] "
+              << get_emoji(level) << "[" << level_name << "] "
+              << "[" << location.file_name() << ":" << location.line() << " in " << location.function_name() << "] "
+              << message
+              << color_reset
+              << std::endl;
+}
+
+/**
+ * @brief Функция для "сырого" логирования без автоматического контекста.
+ *
+ * Используется для интеграции с внешними библиотеками (например, quiche),
+ * которые передают готовые строки логов.
+ *
+ * @tparam Args Типы аргументов для форматирования.
+ * @param format_str Строка формата.
+ * @param args Аргументы для подстановки.
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+template<typename... Args>
+void log_raw_impl(const std::string& format_str, Args&&... args) {
+    // Форматируем сообщение
+    std::string message = fmt::format(fmt::runtime(format_str), args...);
+
+    // Выводим в cerr
+    std::cerr << message << std::endl;
+}
+
+/**
+ * @brief Макрос для логирования уровня DEBUG.
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
+ */
+#define LOG_DEBUG(...) log_impl(LogLevel::DEBUG, std::source_location::current(), __VA_ARGS__)
+
+/**
+ * @brief Макрос для логирования уровня INFO.
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
+ */
+#define LOG_INFO(...)  log_impl(LogLevel::INFO,  std::source_location::current(), __VA_ARGS__)
+
+/**
+ * @brief Макрос для логирования уровня WARN.
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
+ */
+#define LOG_WARN(...)  log_impl(LogLevel::WARN,  std::source_location::current(), __VA_ARGS__)
+
+/**
+ * @brief Макрос для логирования уровня ERROR.
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
+ */
+#define LOG_ERROR(...) log_impl(LogLevel::ERROR, std::source_location::current(), __VA_ARGS__)
+
+/**
+ * @brief Макрос для логирования уровня SUCCESS.
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Использует __FILE__, __LINE__, __func__ — может быть медленным в release-сборке.
+ */
+#define LOG_SUCCESS(...) log_impl(LogLevel::SUCCESS, std::source_location::current(), __VA_ARGS__)
+
+/**
+ * @brief Макрос для "сырого" логирования без контекста (время, файл, функция и т.д.).
+ *
+ * Используется, когда сообщение уже содержит всю необходимую информацию
+ * или поступает из внешней библиотеки.
+ *
+ * @param ... Аргументы для форматирования (совместимы с fmt::format).
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Не добавляет временные метки, уровни или эмодзи — только то, что передано.
+ */
+#define LOG_RAW(...) log_raw_impl(__VA_ARGS__)
