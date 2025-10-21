@@ -13,12 +13,15 @@
  * @license MIT
  */
 
-#include "../../include/http2/tcp_proxy.hpp"
+#include "../include/tcp_proxy.hpp"
 #include <cstring>
 #include <algorithm>
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip) {}
+    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port)
+{
+    (void)listen_port; // Подавление предупреждения "unused parameter"
+}
 
 bool TcpProxy::run() {
     // Создаем сокет для прослушивания
