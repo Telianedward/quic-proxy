@@ -400,8 +400,8 @@ int main()
             }
         }
 
-        / == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
-                                                    if (FD_ISSET(wg_fd, &read_fds))
+        // == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
+        if (FD_ISSET(wg_fd, &read_fds))
         {
             ssize_t n = recvfrom(wg_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&backend_addr, &backend_len);
