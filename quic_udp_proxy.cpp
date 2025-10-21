@@ -37,6 +37,26 @@ std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 // deduplicator — экземпляр класса для дедупликации
 Deduplicator deduplicator;
+// === Реализация VectorHash и VectorEqual ===
+
+size_t VectorHash::operator()(const std::vector<uint8_t> &v) const noexcept
+{
+    size_t result = 0;
+    for (uint8_t b : v)
+    {
+        // Простой хеш с использованием FNV-1a
+        result ^= static_cast<size_t>(b);
+        result *= 2654435761U; // FNV prime
+    }
+    return result;
+}
+
+bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept
+{
+    if (a.size() != b.size())
+        return false;
+    return std::equal(a.begin(), a.end(), b.begin());
+}
 // === Реализация функций ===
 
 int set_nonblocking(int fd) noexcept
