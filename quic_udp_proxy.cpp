@@ -28,9 +28,8 @@
 
 // === Инициализация глобальных переменных ===
 
-// Исправлено: session_map теперь хранит ClientKey → ClientKey
+// session_map теперь хранит ClientKey → ClientKey
 std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
-std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 
 // === Реализация функций ===
 
@@ -53,8 +52,7 @@ bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<ui
 bool ClientKey::operator==(const ClientKey &other) const noexcept
 {
     return addr == other.addr && port == other.port &&
-           std::memcmp(cid, other.cid, 8) == 0 &&
-           token == other.token;
+           std::memcmp(cid, other.cid, 8) == 0;
 }
 
 size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
@@ -62,11 +60,6 @@ size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
     size_t result = std::hash<uint32_t>()(k.addr) ^
                     (std::hash<uint16_t>()(k.port) << 1) ^
                     std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
-    // Хешируем токен
-    for (uint8_t b : k.token)
-    {
-        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
-    }
     return result;
 }
 
@@ -76,21 +69,6 @@ int set_nonblocking(int fd) noexcept
     if (flags == -1)
         return -1;
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
-
-std::vector<uint8_t> generate_local_cid() noexcept
-{
-    // Используем std::mt19937 для C++23
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 255);
-
-    std::vector<uint8_t> cid(8);
-    for (int i = 0; i < 8; ++i)
-    {
-        cid[i] = static_cast<uint8_t>(dis(gen)); // уникальный SCID
-    }
-    return cid;
 }
 
 bool get_external_ip(std::string &ip_out) noexcept
@@ -296,7 +274,6 @@ int main()
                 std::memset(key.cid, 0, 8);
                 std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
                 // Сохраняем токен в session_map
-                key.token = token;
                 session_map[key] = key; // Записываем весь объект ClientKey
                 // Пересылаем Retry-пакет клиенту
                 ssize_t sent = sendto(udp_fd, buf, n, 0,
@@ -335,48 +312,28 @@ int main()
             std::memcpy(key.cid, scid, std::min(static_cast<size_t>(scil), 8UL));
 
             auto it = session_map.find(key);
-            std::vector<uint8_t> local_cid;
             if (it == session_map.end())
             {
-                local_cid = generate_local_cid();
-                session_map[key] = key; // Записываем весь объект ClientKey
-                reverse_map[local_cid] = key;
-                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → LocalCID:", __LINE__, client_ip.c_str(), client_port);
-                for (uint8_t b : local_cid)
+                // Новая сессия
+                session_map[key] = key;
+                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → SCID:", __LINE__, client_ip.c_str(), client_port);
+                for (uint8_t b : key.cid)
                     printf("%02x", b);
                 std::printf("\n");
             }
             else
             {
-                local_cid.assign(it->second.cid, it->second.cid + 8); // Используем CID из сохранённого ключа
-                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse LocalCID:", __LINE__);
-                for (uint8_t b : local_cid)
+                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse SCID:", __LINE__);
+                for (uint8_t b : key.cid)
                     printf("%02x", b);
                 std::printf("\n");
-            }
-
-            // === МОДИФИКАЦИЯ ПАКЕТА: SCIL = 8, SCID = LocalCID ===
-            if (scil > 20)
-            {
-                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректный SCIL=%d, устанавливаем SCIL=8\n", __LINE__, scil);
-                scil = 8;
-            }
-            buf[5] = (buf[5] & 0xF0) | 8;           // Устанавливаем SCIL = 8
-            std::memcpy(scid, local_cid.data(), 8); // Заменяем SCID на LocalCID
-
-            // Добавляем токен в пакет
-            if (it != session_map.end() && it->second.token.size() > 0)
-            {
-                // Вставляем токен в пакет
-                size_t token_offset = 9;
-                buf[token_offset] = it->second.token.size();
-                std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
             }
 
             // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
             std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет до отправки в РФ:\n", __LINE__);
             print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "SEND_TO_RF");
 
+            // Отправляем пакет без изменений
             ssize_t sent = sendto(wg_fd, buf, n, 0,
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
             if (sent < 0)
@@ -437,7 +394,6 @@ int main()
                     std::memset(key.cid, 0, 8);
                     std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
                     // Сохраняем токен в session_map
-                    key.token = token;
                     session_map[key] = key; // Записываем весь объект ClientKey
                     // Пересылаем Retry-пакет клиенту
                     ssize_t sent = sendto(udp_fd, buf, n, 0,
@@ -472,25 +428,26 @@ int main()
             }
 
             uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
-            std::vector<uint8_t> local_cid_vec(dcid, dcid + 8);
 
-            auto rev_it = reverse_map.find(local_cid_vec);
-            if (rev_it == reverse_map.end())
+            // Используем DCID из пакета для поиска сессии
+            ClientKey key{};
+            key.addr = client_addr.sin_addr.s_addr;
+            key.port = client_addr.sin_port;
+            std::memset(key.cid, 0, 8);
+            std::memcpy(key.cid, dcid, 8); // DCID из пакета
+
+            auto it = session_map.find(key);
+            if (it == session_map.end())
             {
-                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Неизвестный LocalCID — пакет потерялся\n", __LINE__);
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Неизвестный DCID — пакет потерялся\n", __LINE__);
                 continue;
             }
 
-            ClientKey orig_key = rev_it->second;
-
-            // === ВОССТАНОВЛЕНИЕ ОРИГИНАЛЬНОГО SCID КАК DCID ===
-            buf[5] = (8 << 4) | (buf[5] & 0x0F); // DCIL = 8
-            std::memcpy(dcid, orig_key.cid, 8);
-
+            // Отправляем пакет клиенту без изменений
             struct sockaddr_in client_dest{};
             client_dest.sin_family = AF_INET;
-            client_dest.sin_addr.s_addr = orig_key.addr;
-            client_dest.sin_port = orig_key.port;
+            client_dest.sin_addr.s_addr = key.addr;
+            client_dest.sin_port = key.port;
 
             ssize_t sent = sendto(udp_fd, buf, n, 0,
                                   (struct sockaddr *)&client_dest, sizeof(client_dest));
