@@ -37,6 +37,31 @@
  *
  * Слушает входящие QUIC-пакеты на порту 443 и перенаправляет их на сервер в России (через WireGuard).
  */
+// === Хэш-функции и равенство для std::vector<uint8_t> ===
+struct VectorHash {
+    size_t operator()(const std::vector<uint8_t> &v) const noexcept {
+        size_t result = 0;
+        for (uint8_t b : v) {
+            result ^= static_cast<size_t>(b);
+            result *= 2654435761U; // FNV prime
+        }
+        return result;
+    }
+};
+
+struct VectorEqual {
+    bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept {
+        if (a.size() != b.size())
+            return false;
+        return std::equal(a.begin(), a.end(), b.begin());
+    }
+};
+
+/**
+ * @brief Класс QUIC-UDP прокси.
+ *
+ * Слушает входящие QUIC-пакеты на порту 443 и перенаправляет их на сервер в России (через WireGuard).
+ */
 class QuicUdpProxy {
 public:
     /**
@@ -65,25 +90,6 @@ private:
     int backend_port_;        ///< Порт сервера в России
     std::string backend_ip_;  ///< IP сервера в России
     volatile sig_atomic_t running_{true}; ///< Флаг работы прокси
-
-    // Хэш-функции и равенство для ClientKey
-    struct ClientKeyHash {
-        size_t operator()(const ClientKey &k) const noexcept {
-            std::hash<uint32_t> hasher;
-            size_t result = hasher(k.addr) ^
-                            (std::hash<uint16_t>()(k.port) << 1) ^
-                            std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
-            return result;
-        }
-    };
-
-    struct ClientKeyEqual {
-        bool operator()(const ClientKey &a, const ClientKey &b) const noexcept {
-            return a.addr == b.addr && a.port == b.port &&
-                   std::memcmp(a.cid, b.cid, 8) == 0 &&
-                   a.token == b.token;
-        }
-    };
 
     // Map: ClientKey -> ClientKey (для хранения токена)
     std::unordered_map<ClientKey, ClientKey, ClientKeyHash, ClientKeyEqual> session_map_;
