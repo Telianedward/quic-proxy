@@ -32,6 +32,9 @@
 
 // session_map теперь хранит ClientKey → ClientKey
 std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
+// reverse_map — обратное отображение: локальный CID → ключ клиента.
+// Используется для поиска клиента по DCID при получении ответа от сервера.
+std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 // deduplicator — экземпляр класса для дедупликации
 Deduplicator deduplicator;
 // === Реализация функций ===
@@ -376,11 +379,12 @@ int main()
             // it — итератор, указывающий на элемент в session_map.
             auto it = session_map.find(key);
 
-            if (it == session_map.end())
+          if (it == session_map.end())
             {
                 // Новая сессия
-                // session_map[key] = key — добавляем новую сессию в session_map.
                 session_map[key] = key;
+                // Добавляем в reverse_map
+                reverse_map[info.scid] = key; // info.scid - это SCID из пакета
                 LOG_INFO("Новая сессия: {}:{} → SCID: {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
                          client_ip.c_str(),
                          client_port,
@@ -551,27 +555,16 @@ if ((packet_type & 0xF0) == 0xF0)  // Retry packet has fixed bits 0xF0
             continue;
         }
 
-        // Извлекаем DCID
+// Извлекаем DCID
         uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 1]);
 
-        // Поиск сессии по DCID
-        ClientKey key{};
-        bool found = false;
-
-        for (const auto &pair : session_map) {
-            const ClientKey &stored_key = pair.first;
-            size_t compare_len = std::min(static_cast<size_t>(scil), 8UL);
-            if (std::memcmp(stored_key.cid, dcid, compare_len) == 0) {
-                key = stored_key;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
+        // Поиск сессии по DCID с помощью reverse_map
+        auto it = reverse_map.find(std::vector<uint8_t>(dcid, dcid + dcil));
+        if (it == reverse_map.end()) {
             LOG_WARN("Неизвестный DCID — пакет потерялся");
             continue;
         }
+        ClientKey key = it->second;
 
         // Отправка пакета клиенту
         struct sockaddr_in client_dest{};
