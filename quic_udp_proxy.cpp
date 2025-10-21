@@ -333,13 +333,34 @@ int main()
             // info.token — вектор, содержащий токен (изначально пустой, так как это первый пакет).
             info.token = {}; // Изначально токен пустой
 
+            // === Извлечение Packet Number ===
+            size_t pos = 5; // Смещение до байта длин CID (байт 5)
+            uint8_t dcil = buf[pos]; // Длина DCID
+            uint8_t scil = buf[pos + 1]; // Длина SCID
+            size_t cid_offset = pos + 2; // Смещение до CID
+            size_t pn_offset = cid_offset + dcil + scil; // Смещение до Packet Number
+
+            // Проверка, что пакет достаточно длинный
+            if (pn_offset >= static_cast<size_t>(n))
+            {
+                LOG_WARN("Пакет слишком короткий для Packet Number");
+                continue;
+            }
+
+            // Извлечение Packet Number (максимум 4 байта)
+            uint64_t packet_number = 0;
+            for (size_t i = 0; i < 4 && pn_offset + i < static_cast<size_t>(n); ++i)
+            {
+                packet_number = (packet_number << 8) | buf[pn_offset + i];
+            }
+
             // Проверяем, является ли пакет повторным
             // deduplicator.is_duplicate — метод класса Deduplicator, проверяющий, был ли уже обработан такой пакет.
             // Аргументы:
             //   key — ключ клиента (IP, порт, SCID).
             //   info.scid — SCID из пакета.
             //   info.token — токен из пакета.
-            if (deduplicator.is_duplicate(key, info.scid, info.token))
+            if (deduplicator.is_duplicate(key, info.scid, info.token, packet_number))
             {
                 // Если пакет повторный — игнорируем его.
                 LOG_INFO("Повторный пакет — игнорируем");
