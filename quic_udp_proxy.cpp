@@ -334,10 +334,7 @@ int main()
             info.token = {}; // Изначально токен пустой
 
             // === Извлечение Packet Number ===
-            size_t pos = 5; // Смещение до байта длин CID (байт 5)
-            uint8_t dcil = buf[pos]; // Длина DCID
-            uint8_t scil = buf[pos + 1]; // Длина SCID
-            size_t cid_offset = pos + 2; // Смещение до CID
+            size_t cid_offset = pos + 2;                 // Смещение до CID
             size_t pn_offset = cid_offset + dcil + scil; // Смещение до Packet Number
 
             // Проверка, что пакет достаточно длинный
