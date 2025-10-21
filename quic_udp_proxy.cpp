@@ -14,7 +14,6 @@
 
 #include "quic_udp_proxy.hpp"
 #include "include/quic_udp_deduplicator.hpp"
-#include "include/client_key.hpp"
 #include "server/logger.h"
 #include <sys/socket.h>
 #include <netinet/in.h>

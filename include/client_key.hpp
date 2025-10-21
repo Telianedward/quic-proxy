@@ -28,6 +28,7 @@ struct ClientKey {
     uint32_t addr;          ///< IPv4-адрес клиента
     uint16_t port;          ///< Порт клиента
     uint8_t cid[8];         ///< Первые 8 байт SCID
+    std::vector<uint8_t> token; ///< Токен из Retry-пакета
 
     bool operator==(const ClientKey &other) const noexcept;
 };

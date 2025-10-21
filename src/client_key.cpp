@@ -14,6 +14,9 @@
 // src/client_key.cpp
 #include "client_key.hpp"
 
+// src/client_key.cpp
+#include "client_key.hpp"
+
 size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
 {
     std::hash<uint32_t> hasher;
@@ -26,11 +29,13 @@ size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
 bool ClientKeyEqual::operator()(const ClientKey &a, const ClientKey &b) const noexcept
 {
     return a.addr == b.addr && a.port == b.port &&
-           std::memcmp(a.cid, b.cid, 8) == 0;
+           std::memcmp(a.cid, b.cid, 8) == 0 &&
+           a.token == b.token; // Добавлено сравнение токена
 }
 
 bool ClientKey::operator==(const ClientKey &other) const noexcept
 {
     return addr == other.addr && port == other.port &&
-           std::memcmp(cid, other.cid, 8) == 0;
+           std::memcmp(cid, other.cid, 8) == 0 &&
+           token == other.token; // Добавлено сравнение токена
 }
