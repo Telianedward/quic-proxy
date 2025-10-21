@@ -34,6 +34,7 @@ find_package(fmt CONFIG REQUIRED)
 add_executable(quic_proxy
     quic_udp_proxy.cpp
     src/client_key.cpp
+    src/quic_udp_deduplicator.cpp
 )
 
 # Линковка: pthread и fmt
