@@ -1,4 +1,4 @@
-// include/tcp_proxy.hpp
+// include/http2/tcp_proxy.hpp
 /**
  * @file tcp_proxy.hpp
  * @brief Заголовочный файл для TCP-прокси, обрабатывающего HTTP/2 и HTTP/1.1.
@@ -26,7 +26,7 @@
 #include <cerrno>
 #include <sys/select.h>
 #include <thread>
-#include "../logger/logger.h"
+#include "server/logger.h"
 
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.
@@ -58,6 +58,7 @@ private:
     int listen_fd_;          ///< Сокет для прослушивания входящих соединений
     int backend_port_;       ///< Порт сервера в России
     std::string backend_ip_; ///< IP сервера в России
+    int listen_port_;        ///< Порт, на котором слушает прокси
     volatile sig_atomic_t running_{true}; ///< Флаг работы прокси
 
     // Карта активных соединений: client_fd -> backend_fd
