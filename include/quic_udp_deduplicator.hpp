@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
-
+#include "client_key.hpp"
 /**
  * @brief Класс для дедупликации QUIC-пакетов.
  *

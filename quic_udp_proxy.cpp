@@ -14,6 +14,7 @@
 
 #include "quic_udp_proxy.hpp"
 #include "include/quic_udp_deduplicator.hpp"
+#include "include/qclient_key.hpp"
 #include "server/logger.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -51,25 +52,6 @@ bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<ui
     return a == b;
 }
 
-bool ClientKey::operator==(const ClientKey &other) const noexcept
-{
-    return addr == other.addr && port == other.port &&
-           std::memcmp(cid, other.cid, 8) == 0 &&
-           token == other.token;
-}
-
-size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
-{
-    size_t result = std::hash<uint32_t>()(k.addr) ^
-                    (std::hash<uint16_t>()(k.port) << 1) ^
-                    std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
-    // Хешируем токен
-    for (uint8_t b : k.token)
-    {
-        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
-    }
-    return result;
-}
 
 int set_nonblocking(int fd) noexcept
 {
