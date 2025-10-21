@@ -32,7 +32,8 @@ find_package(fmt CONFIG REQUIRED)
 
 # === Источники ===
 add_executable(quic_proxy
-    quic_udp_proxy.cpp
+    main.cpp
+    src/tcp_proxy.cpp
     src/client_key.cpp
     src/quic_udp_deduplicator.cpp
 )

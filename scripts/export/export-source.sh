@@ -22,6 +22,7 @@ FILES=(
     "server/logger.h"
     "include/client_key.hpp"
     "include/quic_udp_deduplicator.hpp"
+    "CMakeLists.txt"
 )
 
 for file_path in "${FILES[@]}"; do

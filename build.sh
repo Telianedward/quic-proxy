@@ -9,8 +9,6 @@ fi
 # Путь к каталогу
 QUIC_PROXY_DIR="/opt/quic-proxy"
 
-
-
 echo "=== Начинаем установку и запуск quic-proxy ==="
 
 # 3. Переходим в каталог
