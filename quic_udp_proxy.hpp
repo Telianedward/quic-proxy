@@ -32,50 +32,7 @@
 #include <cstdlib>   // Для std::srand, std::rand
 #include "server/logger.h"
 
-/**
- * @brief Хеш-функция для std::vector<uint8_t>
- *
- * Используется для хеширования CID в session_map.
- */
-struct VectorHash
-{
-    size_t operator()(const std::vector<uint8_t> &v) const noexcept;
-};
 
-/**
- * @brief Оператор сравнения для векторов байтов
- *
- * Используется для сравнения CID в reverse_map.
- */
-struct VectorEqual
-{
-    bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept;
-};
-
-
-/**
- * @brief Ключ клиента: IP, порт и первые 8 байт SCID
- *
- * Используется для маппинга сессий между клиентом и локальным CID.
- */
-struct ClientKey
-{
-    uint32_t addr;          ///< IPv4-адрес клиента
-    uint16_t port;          ///< Порт клиента
-    uint8_t cid[8];         ///< Первые 8 байт исходного SCID
-    std::vector<uint8_t> token; ///< Токен из Retry-пакета
-    bool operator==(const ClientKey &other) const noexcept;
-};
-
-/**
- * @brief Хеш для структуры ClientKey
- *
- * Используется для хеширования ключей в session_map.
- */
-struct ClientKeyHash
-{
-    size_t operator()(const ClientKey &k) const noexcept;
-};
 
 // === Глобальные константы ===
 constexpr char BACKEND_IP[] = "10.8.0.11";   ///< IP сервера в РФ через WireGuard
