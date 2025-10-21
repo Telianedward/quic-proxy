@@ -1,4 +1,18 @@
+/**
+ * @file quic_udp_deduplicator.hpp
+ * @brief Краткое описание назначения заголовочного файла.
+ *
+ * Более подробное описание того, какие классы, функции, структуры объявляет файл.
+ * Может содержать информацию о зависимости от других модулей или ограничениях использования.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-10-21
+ * @version 1.0
+ * @license MIT
+ */
 // include/quic_udp_deduplicator.hpp
+
 #pragma once
 #include <unordered_map>
 #include <vector>
