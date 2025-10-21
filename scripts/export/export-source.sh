@@ -19,7 +19,7 @@ FILES=(
     "quic_udp_proxy.hpp"
     "src/client_key.cpp"
     "src/quic_udp_deduplicator.cpp"
-    "src/server/logger.cpp"
+    "server/logger.h"
     "include/client_key.hpp"
     "include/quic_udp_deduplicator.hpp"
 )
