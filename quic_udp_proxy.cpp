@@ -323,7 +323,8 @@ int main()
                 continue;
             }
 
-            uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
+            // uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
+
             uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 2 + dcil]);
 
             ClientKey key{};
