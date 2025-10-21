@@ -34,8 +34,6 @@ int main() {
         // 👇 Инициализируем логгер ДО создания серверов
         // Логгер уже инициализирован в logger.h
 
-
-
         // Настройки
         const int http3_port = 443;
         const int http2_port = 443; // TCP-прокси слушает тот же порт
@@ -47,7 +45,7 @@ int main() {
         TcpProxy tcp_proxy(http2_port, backend_ip, backend_port);
 
         // Запуск QUIC-UDP прокси
-        std::thread quic_thread([&quic_proxy]() {
+        std::thread quic_thread([http3_port, &quic_proxy]() { // Захватываем http3_port и quic_proxy
             LOG_INFO("🚀 QUIC-UDP прокси запущен на порту {}", http3_port);
             if (!quic_proxy.run()) {
                 LOG_ERROR("❌ QUIC-UDP прокси завершился с ошибкой");
@@ -56,7 +54,7 @@ int main() {
         });
 
         // Запуск TCP-прокси
-        std::thread tcp_thread([&tcp_proxy]() {
+        std::thread tcp_thread([http2_port, &tcp_proxy]() { // Захватываем http2_port и tcp_proxy
             LOG_INFO("🚀 TCP-прокси запущен на порту {}", http2_port);
             if (!tcp_proxy.run()) {
                 LOG_ERROR("❌ TCP-прокси завершился с ошибкой");
