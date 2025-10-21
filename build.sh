@@ -4,3 +4,5 @@ rm -rf build
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
+
+sudo systemctl restart quic-proxy.service
