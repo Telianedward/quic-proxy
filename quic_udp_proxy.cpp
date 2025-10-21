@@ -13,6 +13,7 @@
  */
 
 #include "quic_udp_proxy.hpp"
+#include "include/quic_udp_deduplicator.hpp"
 #include "server/logger.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -30,7 +31,8 @@
 
 // session_map теперь хранит ClientKey → ClientKey
 std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
-
+// deduplicator — экземпляр класса для дедупликации
+Deduplicator deduplicator;
 // === Реализация функций ===
 
 size_t VectorHash::operator()(const std::vector<uint8_t> &v) const noexcept
@@ -229,62 +231,89 @@ int main()
             std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] select error: %s\n", __LINE__, strerror(errno));
             continue;
         }
-
         // === НАПРАВЛЕНИЕ: КЛИЕНТ → СЕРВЕР ===
         if (FD_ISSET(udp_fd, &read_fds))
         {
+            // === Получение пакета от клиента ===
+            // n — количество прочитанных байт.
+            // buf — буфер, в который записаны данные пакета.
+            // client_addr — структура, содержащая IP-адрес и порт клиента.
+            // client_len — размер структуры client_addr.
             ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&client_addr, &client_len);
 
             if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
-                    std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom client failed: %s\n", __LINE__, strerror(errno));
+                {
+                    LOG_ERROR("recvfrom client failed: {}", strerror(errno));
+                }
                 continue;
             }
 
+            // === Извлечение IP-адреса и порта клиента для логирования ===
+            // client_ip — строковое представление IPv4-адреса клиента (например, "192.168.1.100").
+            // Функция inet_ntoa преобразует 32-битное целое число (в сетевом порядке байт) в строку в формате "A.B.C.D".
+            // Аргумент: client_addr.sin_addr.s_addr — это поле структуры sockaddr_in, содержащее IP-адрес клиента.
             std::string client_ip = inet_ntoa(client_addr.sin_addr);
+
+            // client_port — номер порта клиента, на котором он установил соединение.
+            // Функция ntohs преобразует 16-битное целое число из сетевого порядка байт (big-endian) в порядок хоста (host byte order).
+            // Аргумент: client_addr.sin_port — это поле структуры sockaddr_in, содержащее порт клиента в сетевом порядке байт.
             uint16_t client_port = ntohs(client_addr.sin_port);
 
-            std::printf("\n=== [CLIENT → SERVER] ===\n");
-            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получено %zd байт от %s:%u\n", __LINE__, n, client_ip.c_str(), client_port);
+            LOG_INFO("=== [CLIENT → SERVER] ===");
+            LOG_INFO("Получено {} байт от {}:{}",
+                     n,
+                     client_ip.c_str(),
+                     client_port);
+            // Выводим hex-дамп заголовка пакета для отладки.
             print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "HEADER");
-
+            // Проверка минимального размера пакета. QUIC-заголовок не может быть короче 6 байт.
             if (n < 6)
             {
-                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Слишком короткий пакет (%zd байт)\n", __LINE__, n);
+                LOG_WARN("Слишком короткий пакет ({}) байт", n);
                 continue;
             }
-
+            // === Парсинг типа пакета ===
+            // packet_type — первый байт пакета, определяющий тип заголовка.
             uint8_t packet_type = buf[0];
+            // Проверяем, является ли пакет Long Header (биты 7-6 == 11).
             if ((packet_type & 0xC0) != 0xC0)
             {
-                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Short Header — пропускаем\n", __LINE__);
+                LOG_DEBUG("Short Header — пропускаем");
                 continue;
             }
 
             // === Обработка Retry-пакета ===
+            // Если пакет начинается с 0xF0 и его длина >= 9, это Retry-пакет.
             if (n >= 9 && static_cast<unsigned char>(buf[0]) == 0xF0)
             {
-                // Это Retry-пакет
                 LOG_INFO("Received Retry packet");
-                // Извлекаем токен из Retry-пакета
+                // === Извлечение токена из Retry-пакета ===
+                // token_offset — смещение до токена (байт 9).
                 size_t token_offset = 9;
+                // token_len — длина токена (хранится в байте 9).
                 size_t token_len = buf[token_offset];
+                // token — вектор, содержащий сам токен.
                 std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
-                // Создаём ключ на основе IP и порта клиента
+                // === Создание ключа для хранения токена ===
+                // key — объект ClientKey, используемый как ключ в session_map.
                 ClientKey key{};
-                key.addr = client_addr.sin_addr.s_addr;
-                key.port = client_addr.sin_port;
-                // Первые 8 байт после токена — это SCID (используем их как CID)
+                key.addr = client_addr.sin_addr.s_addr; // IPv4-адрес клиента.
+                key.port = client_addr.sin_port;        // Порт клиента.
+                                                        // cid — первые 8 байт SCID из Retry-пакета.
                 std::memset(key.cid, 0, 8);
-                std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
-                // Сохраняем токен в session_map
+                std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID.
+
+                // === Сохранение токена в session_map ===
                 key.token = token;
-                session_map[key] = key; // Записываем весь объект ClientKey
-                // Пересылаем Retry-пакет клиенту
+                session_map[key] = key;
+
+                // === Пересылка Retry-пакета клиенту ===
                 ssize_t sent = sendto(udp_fd, buf, n, 0,
                                       (struct sockaddr *)&client_addr, sizeof(client_addr));
+
                 if (sent < 0)
                 {
                     LOG_ERROR("sendto client failed: {}", strerror(errno));
@@ -293,60 +322,121 @@ int main()
                 {
                     LOG_INFO("Retry packet sent to client");
                 }
-                continue; // Пропускаем дальнейшую обработку этого пакета
+                continue; // Пропускаем дальнейшую обработку этого пакета.
             }
 
+            // === Парсинг версии QUIC ===
+            // version — 32-битное число, представляющее версию QUIC.
             uint32_t version = (buf[1] << 24) | (buf[2] << 16) | (buf[3] << 8) | buf[4];
+
+            // === Парсинг длин CID ===
+            // pos — смещение до байта длин CID (байт 5).
             size_t pos = 5;
+            // dcil — длина DCID (верхние 4 бита байта 5).
             uint8_t dcil = buf[pos];
+            // scil — длина SCID (нижние 4 бита байта 5).
             uint8_t scil = buf[pos + 1];
 
-            std::printf("[INFO] [quic_udp_proxy.cpp:%d] QUIC Версия: 0x%08x, DCIL=%d, SCIL=%d\n",
-                        __LINE__, version, dcil, scil);
+            LOG_INFO("QUIC Версия: 0x{:08x}, DCIL={}, SCIL={}",
+                     version,
+                     static_cast<int>(dcil),
+                     static_cast<int>(scil));
 
+            // Проверка корректности длин CID.
             if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > static_cast<size_t>(n))
             {
-                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректные CID длины\n", __LINE__);
+                LOG_WARN("Некорректные CID длины");
                 continue;
             }
-
+            // === Извлечение SCID ===
+            // scid — указатель на SCID в пакете.
             uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 2 + dcil]);
 
+            // === Создание ключа для поиска сессии ===
             ClientKey key{};
             key.addr = client_addr.sin_addr.s_addr;
             key.port = client_addr.sin_port;
             std::memset(key.cid, 0, 8);
             std::memcpy(key.cid, scid, std::min(static_cast<size_t>(scil), 8UL));
 
+            // === Проверка на дубликат с помощью Deduplicator ===
+            // Создаем объект PacketInfo для передачи в Deduplicator
+            // info — объект типа Deduplicator::PacketInfo, содержащий информацию о пакете.
+            Deduplicator::PacketInfo info;
+            // info.scid — вектор, содержащий SCID из пакета.
+            info.scid = std::vector<uint8_t>(scid, scid + scil);
+            // info.token — вектор, содержащий токен (изначально пустой, так как это первый пакет).
+            info.token = {}; // Изначально токен пустой
+
+            // Проверяем, является ли пакет повторным
+            // deduplicator.is_duplicate — метод класса Deduplicator, проверяющий, был ли уже обработан такой пакет.
+            // Аргументы:
+            //   key — ключ клиента (IP, порт, SCID).
+            //   info.scid — SCID из пакета.
+            //   info.token — токен из пакета.
+            if (deduplicator.is_duplicate(key, info.scid, info.token))
+            {
+                // Если пакет повторный — игнорируем его.
+                LOG_INFO("Повторный пакет — игнорируем");
+                continue; // Пропускаем дальнейшую обработку
+            }
+
+            // Это первый пакет — добавляем информацию о нем в Deduplicator
+            // deduplicator.add_packet — метод класса Deduplicator, сохраняющий информацию о первом пакете.
+            // Аргументы:
+            //   key — ключ клиента.
+            //   info — объект PacketInfo, содержащий SCID и токен.
+            deduplicator.add_packet(key, info);
+
+            // === Поиск сессии в session_map ===
+            // it — итератор, указывающий на элемент в session_map.
             auto it = session_map.find(key);
+
             if (it == session_map.end())
             {
                 // Новая сессия
+                // session_map[key] = key — добавляем новую сессию в session_map.
                 session_map[key] = key;
-                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → SCID:", __LINE__, client_ip.c_str(), client_port);
-                for (uint8_t b : key.cid)
-                    printf("%02x", b);
-                std::printf("\n");
+                LOG_INFO("Новая сессия: {}:{} → SCID: {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                         client_ip.c_str(),
+                         client_port,
+                         key.cid[0],
+                         key.cid[1],
+                         key.cid[2],
+                         key.cid[3],
+                         key.cid[4],
+                         key.cid[5],
+                         key.cid[6],
+                         key.cid[7]);
             }
             else
             {
-                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse SCID:", __LINE__);
-                for (uint8_t b : key.cid)
-                    printf("%02x", b);
-                std::printf("\n");
+                LOG_DEBUG("Reuse SCID: {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                          key.cid[0],
+                          key.cid[1],
+                          key.cid[2],
+                          key.cid[3],
+                          key.cid[4],
+                          key.cid[5],
+                          key.cid[6],
+                          key.cid[7]);
             }
 
             // Добавляем токен в пакет
+            // it != session_map.end() — проверка, существует ли сессия.
+            // it->second.token.size() > 0 — проверка, есть ли токен в сессии.
             if (it != session_map.end() && it->second.token.size() > 0)
             {
-                // Вставляем токен в пакет
+                // token_offset — смещение до токена в пакете (байт 9).
                 size_t token_offset = 9;
+                // Записываем длину токена в байт 9.
                 buf[token_offset] = it->second.token.size();
+                // Копируем токен в пакет.
                 std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
             }
 
             // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
-            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет до отправки в РФ:\n", __LINE__);
+            LOG_INFO("Пакет до отправки в РФ:");
             print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "SEND_TO_RF");
 
             // Отправляем пакет без изменений
@@ -354,14 +444,13 @@ int main()
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
             if (sent < 0)
             {
-                std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto backend failed: %s\n", __LINE__, strerror(errno));
+                LOG_ERROR("sendto backend failed: {}", strerror(errno));
             }
             else
             {
-                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Переслано %zd байт в РФ\n", __LINE__, sent);
+                LOG_INFO("Переслано {} байт в РФ", sent);
             }
         }
-
         // == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
         if (FD_ISSET(wg_fd, &read_fds))
         {
