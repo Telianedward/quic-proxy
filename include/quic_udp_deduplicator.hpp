@@ -25,17 +25,44 @@
  * Хранит информацию о первом Initial-пакете для каждого клиента.
  * Позволяет определить, является ли пакет повторным.
  */
-class Deduplicator {
+class Deduplicator
+{
 public:
     /**
      * @brief Структура для хранения информации о первом Initial-пакете.
      */
-    struct PacketInfo {
+    struct PacketInfo
+    {
         std::vector<uint8_t> token; ///< Токен из Retry-пакета
         std::vector<uint8_t> scid;  ///< SCID из первого Initial-пакета
         // Можно добавить другие поля, если нужно
     };
 
+    /**
+     * @brief Структура для ключа дедупликации.
+     */
+    struct PacketKey
+    {
+        ClientKey client_key;      ///< Ключ клиента (IP + порт)
+        std::vector<uint8_t> scid; ///< SCID
+        std::vector<uint8_t> dcid; ///< DCID
+        uint64_t packet_number;    ///< Номер пакета
+    };
+    /**
+     * @brief Хеш-функция для PacketKey.
+     */
+    struct PacketKeyHash
+    {
+        size_t operator()(const PacketKey &key) const noexcept;
+    };
+
+    /**
+     * @brief Оператор сравнения для PacketKey.
+     */
+    struct PacketKeyEqual
+    {
+        bool operator()(const PacketKey &a, const PacketKey &b) const noexcept;
+    };
 
     /**
      * @brief Конструктор.

@@ -1,0 +1,113 @@
+root@eros-vps://opt# journalctl -u quic-proxy.service -f
+Oct 21 14:42:29 eros-vps quic_proxy[20796]: [2025-10-21 14:42:29] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:307 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=10
+Oct 21 14:42:29 eros-vps quic_proxy[20796]: [2025-10-21 14:42:29] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:347 in int main()] Повторный пакет — игнорируем
+Oct 21 15:21:52 eros-vps quic_proxy[20796]: [INFO] [quic_udp_proxy.cpp:100] Получен сигнал 15. Остановка...
+Oct 21 15:21:52 eros-vps quic_proxy[20796]: [INFO] [quic_udp_proxy.cpp:540] Прокси остановлен.
+Oct 21 15:21:52 eros-vps systemd[1]: Stopping quic-proxy.service - QUIC UDP Proxy for end-to-end HTTP/3...
+Oct 21 15:21:52 eros-vps systemd[1]: quic-proxy.service: Deactivated successfully.
+Oct 21 15:21:52 eros-vps systemd[1]: Stopped quic-proxy.service - QUIC UDP Proxy for end-to-end HTTP/3.
+Oct 21 15:21:52 eros-vps systemd[1]: quic-proxy.service: Consumed 1.549s CPU time.
+Oct 21 15:21:52 eros-vps systemd[1]: Starting quic-proxy.service - QUIC UDP Proxy for end-to-end HTTP/3...
+Oct 21 15:21:52 eros-vps systemd[1]: Started quic-proxy.service - QUIC UDP Proxy for end-to-end HTTP/3.
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [INFO] [quic_udp_proxy.cpp:180] Запущен на порту 443, слушает 0.0.0.0, бэкенд: 10.8.0.11:8585
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: cf 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:365 in int main()] Новая сессия: 46.138.9.107:2289 → SCID: 551eb924cbcaa3d9
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: cf 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c8 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c8 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+
+
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a 7a 96 63 05 d7 d4 ea c8 43 d7 90 a3 cf 6b 6d 3c 99 d5 50 85 4d 59 90 ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a 7a 96 63 05 d7 d4 ea c8 43 d7 90 a3 cf 6b 6d 3c 99 d5 50 85 4d 59 90 ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+
+
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a a6 a4 75 73 51 5b 2c 28 af 3b c4 97 88 19 64 c2 d5 1b d2 20 59 e8 15 ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a a6 a4 75 73 51 5b 2c 28 af 3b c4 97 88 19 64 c2 d5 1b d2 20 59 e8 15 ...
+Oct 21 15:22:33 eros-vps quic_proxy[21107]: [2025-10-21 15:22:33] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a a9 09 ce 65 9c 3b 3a 5c 5a 39 8c 71 56 cd 6c 05 14 5a 34 d5 1a bf f3 ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a a9 09 ce 65 9c 3b 3a 5c 5a 39 8c 71 56 cd 6c 05 14 5a 34 d5 1a bf f3 ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a ee c1 86 fc 12 73 53 7f 62 07 4e 97 33 7d ff a6 f5 ed 0a 31 ae 7a 1e ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a ee c1 86 fc 12 73 53 7f 62 07 4e 97 33 7d ff a6 f5 ed 0a 31 ae 7a 1e ...
+Oct 21 15:22:34 eros-vps quic_proxy[21107]: [2025-10-21 15:22:34] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c7 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c7 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a 31 68 e5 7e 3f df df 52 25 72 5c 4d 92 ff 09 8c 04 ae bb 3e be c4 2a ...
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a 31 68 e5 7e 3f df df 52 25 72 5c 4d 92 ff 09 8c 04 ae bb 3e be c4 2a ...
+Oct 21 15:22:36 eros-vps quic_proxy[21107]: [2025-10-21 15:22:36] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c5 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c5 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:40 eros-vps quic_proxy[21107]: [2025-10-21 15:22:40] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:230 in int main()] === [CLIENT → SERVER] ===
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:231 in int main()] Получено 1200 байт от 46.138.9.107:2289
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] HEADER: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:305 in int main()] QUIC Версия: 0x00000001, DCIL=20, SCIL=106
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 💟[DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:379 in int main()] Reuse SCID: 551eb924cbcaa3d9
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:404 in int main()] Пакет до отправки в РФ:
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] SEND_TO_RF: c3 00 00 00 01 14 6a 69 26 7e 7b b4 12 ba be 49 b3 fa 5c eb 6f 28 67 02 1f 23 14 55 1e b9 24 cb ...
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:416 in int main()] Переслано 1200 байт в РФ
+
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:437 in int main()] Пакет после получения от РФ:
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] RECV_FROM_RF: f0 00 00 00 01 01 6a 01 6a 7e 0f 73 2d b5 93 cb 1a 7a 23 a3 76 c2 73 6e c9 ee 46 a2 f2 77 4a f6 ...
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:441 in int main()] === [SERVER → CLIENT] ===
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] 🔵[INFO] [/opt/quic-proxy/quic_udp_proxy.cpp:442 in int main()] Получено 33 байт от сервера
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [DEBUG] [/opt/quic-proxy/quic_udp_proxy.cpp:84] REPLY_HEADER: f0 00 00 00 01 01 6a 01 6a 7e 0f 73 2d b5 93 cb 1a 7a 23 a3 76 c2 73 6e c9 ee 46 a2 f2 77 4a f6 ...
+Oct 21 15:22:43 eros-vps quic_proxy[21107]: [2025-10-21 15:22:43] ⚠️[WARN] [/opt/quic-proxy/quic_udp_proxy.cpp:513 in int main()] Некорректные CID длины
+
