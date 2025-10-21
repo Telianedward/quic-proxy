@@ -31,7 +31,7 @@
 #include <algorithm> // Для std::min, std::max
 #include <cstdlib>   // Для std::srand, std::rand
 #include "server/logger.h"
-
+#include "include/client_key.hpp"
 
 
 // === Глобальные константы ===
