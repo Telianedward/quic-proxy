@@ -44,7 +44,6 @@ size_t VectorHash::operator()(const std::vector<uint8_t> &v) const noexcept
     size_t result = 0;
     for (uint8_t b : v)
     {
-        // Простой хеш с использованием FNV-1a
         result ^= static_cast<size_t>(b);
         result *= 2654435761U; // FNV prime
     }
@@ -441,7 +440,7 @@ int main()
                         key.cid[4], key.cid[5], key.cid[6], key.cid[7]);
 
                 // Проверяем, что пакет достаточно длинный для токена
-                if (n < 9 + 1 + it->second.token.size()) {
+                if (static_cast<size_t>(n) < 9 + 1 + it->second.token.size()) {
                     LOG_WARN("Packet too short to add token");
                     continue;
                 }
