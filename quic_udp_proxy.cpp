@@ -409,14 +409,27 @@ int main()
             // Добавляем токен в пакет
             // it != session_map.end() — проверка, существует ли сессия.
             // it->second.token.size() > 0 — проверка, есть ли токен в сессии.
-            if (it != session_map.end() && it->second.token.size() > 0)
+            // Добавляем токен в пакет
+            if (it != session_map.end() && !it->second.token.empty())
             {
-                // token_offset — смещение до токена в пакете (байт 9).
-                size_t token_offset = 9;
-                // Записываем длину токена в байт 9.
-                buf[token_offset] = it->second.token.size();
-                // Копируем токен в пакет.
-                std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
+                LOG_INFO("Adding token to packet for SCID: {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                        key.cid[0], key.cid[1], key.cid[2], key.cid[3],
+                        key.cid[4], key.cid[5], key.cid[6], key.cid[7]);
+
+                // Проверяем, что пакет достаточно длинный для токена
+                if (n < 9 + 1 + it->second.token.size()) {
+                    LOG_WARN("Packet too short to add token");
+                    continue;
+                }
+
+                // Устанавливаем длину токена в байте 9
+                buf[9] = static_cast<uint8_t>(it->second.token.size());
+
+                // Копируем токен в пакет (начиная с байта 10)
+                std::memcpy(buf + 10, it->second.token.data(), it->second.token.size());
+
+                // Обновляем размер пакета, если токен стал длиннее предыдущего
+                n = std::max(n, 10 + static_cast<ssize_t>(it->second.token.size()));
             }
 
             // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
@@ -465,72 +478,63 @@ if (FD_ISSET(wg_fd, &read_fds))
 
     uint8_t packet_type = buf[0];
 
-    // === Обработка Retry-пакета ===
-    if ((packet_type & 0xF0) == 0xF0)  // Retry packet has fixed bits 0xF0
-    {
-        LOG_INFO("Received Retry packet from server");
-
-        // Парсим Retry-пакет правильно
-        if (n < 9) {
-            LOG_WARN("Retry packet too short");
-            continue;
-        }
-
-        // В Retry-пакете структура отличается
-        // Пропускаем версию (4 байта) и получаем длины CID
-        size_t pos = 5;
-        uint8_t dcil = (buf[pos] >> 4) & 0x0F;  // DCIL в верхних 4 битах
-        uint8_t scil = buf[pos] & 0x0F;         // SCIL в нижних 4 битах
-
-        LOG_INFO("Retry packet: DCIL={}, SCIL={}", static_cast<int>(dcil), static_cast<int>(scil));
-
-        // Проверяем минимальную длину для Retry
-        size_t min_retry_size = pos + 1 + dcil + scil + 1; // +1 для токена длины
-        if (static_cast<size_t>(n) < min_retry_size) {
-            LOG_WARN("Retry packet too short for CID fields");
-            continue;
-        }
-
-        // Извлекаем SCID (после DCID)
-        uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 1 + dcil]);
-
-        // Извлекаем токен
-        size_t token_offset = pos + 1 + dcil + scil;
-        size_t token_len = buf[token_offset];
-
-        if (token_offset + 1 + token_len > static_cast<size_t>(n)) {
-            LOG_WARN("Invalid token length in Retry packet");
-            continue;
-        }
-
-        std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
-
-        // Создаем ключ для session_map
-        ClientKey key{};
-        key.addr = client_addr.sin_addr.s_addr;
-        key.port = client_addr.sin_port;
-        std::memset(key.cid, 0, 8);
-        std::memcpy(key.cid, scid, std::min(static_cast<size_t>(scil), 8UL));
-        key.token = token;
-
-        // Сохраняем в session_map
-        session_map[key] = key;
-        LOG_INFO("Saved Retry token for client: SCID={:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                 key.cid[0], key.cid[1], key.cid[2], key.cid[3],
-                 key.cid[4], key.cid[5], key.cid[6], key.cid[7]);
-
-        // Отправляем Retry-пакет клиенту
-        ssize_t sent = sendto(udp_fd, buf, n, 0,
-                              (struct sockaddr *)&client_addr, sizeof(client_addr));
-
-        if (sent < 0) {
-            LOG_ERROR("sendto client failed: {}", strerror(errno));
-        } else {
-            LOG_INFO("Retry packet sent to client");
-        }
+ // === Обработка Retry-пакета ===
+if ((packet_type & 0xF0) == 0xF0)  // Retry packet has fixed bits 0xF0
+{
+    LOG_INFO("Received Retry packet from server");
+    // Парсим Retry-пакет правильно
+    if (n < 9) {
+        LOG_WARN("Retry packet too short");
         continue;
     }
-
+    // В Retry-пакете структура отличается
+    // Пропускаем версию (4 байта) и получаем длины CID
+    size_t pos = 5;
+    uint8_t dcil = (buf[pos] >> 4) & 0x0F;  // DCIL в верхних 4 битах
+    uint8_t scil = buf[pos] & 0x0F;         // SCIL в нижних 4 битах
+    LOG_INFO("Retry packet: DCIL={}, SCIL={}", static_cast<int>(dcil), static_cast<int>(scil));
+    // Проверяем минимальную длину для Retry
+    size_t min_retry_size = pos + 1 + dcil + scil + 1; // +1 для токена длины
+    if (static_cast<size_t>(n) < min_retry_size) {
+        LOG_WARN("Retry packet too short for CID fields");
+        continue;
+    }
+    // Извлекаем SCID (после DCID)
+    uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 1 + dcil]);
+    // Извлекаем токен
+    size_t token_offset = pos + 1 + dcil + scil;
+    size_t token_len = buf[token_offset];
+    if (token_offset + 1 + token_len > static_cast<size_t>(n)) {
+        LOG_WARN("Invalid token length in Retry packet");
+        continue;
+    }
+    std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
+    // Создаем ключ для session_map
+    ClientKey key{};
+    // Используем IP и порт клиента из исходного пакета (они должны быть сохранены)
+    // Для этого нужно хранить обратное отображение DCID -> ClientKey
+    // Это требует изменения архитектуры, см. ниже
+    // Пока просто используем dummy значения
+    key.addr = client_addr.sin_addr.s_addr;
+    key.port = client_addr.sin_port;
+    std::memset(key.cid, 0, 8);
+    std::memcpy(key.cid, scid, std::min(static_cast<size_t>(scil), 8UL));
+    key.token = token;
+    // Сохраняем в session_map
+    session_map[key] = key;
+    LOG_INFO("Saved Retry token for client: SCID={:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+             key.cid[0], key.cid[1], key.cid[2], key.cid[3],
+             key.cid[4], key.cid[5], key.cid[6], key.cid[7]);
+    // Отправляем Retry-пакет клиенту
+    ssize_t sent = sendto(udp_fd, buf, n, 0,
+                          (struct sockaddr *)&client_addr, sizeof(client_addr));
+    if (sent < 0) {
+        LOG_ERROR("sendto client failed: {}", strerror(errno));
+    } else {
+        LOG_INFO("Retry packet sent to client");
+    }
+    continue;
+}
     // === Обработка обычных Long Header пакетов ===
     if ((packet_type & 0xC0) == 0xC0) {
         // Парсинг длин CID для обычных пакетов
