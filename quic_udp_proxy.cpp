@@ -486,7 +486,7 @@ if (FD_ISSET(wg_fd, &read_fds))
 
         // Проверяем минимальную длину для Retry
         size_t min_retry_size = pos + 1 + dcil + scil + 1; // +1 для токена длины
-        if (n < min_retry_size) {
+        if (static_cast<size_t>(n) < min_retry_size) {
             LOG_WARN("Retry packet too short for CID fields");
             continue;
         }
