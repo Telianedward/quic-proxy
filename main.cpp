@@ -1,7 +1,7 @@
 // main.cpp
 /**
  * @file main.cpp
- * @brief Точка входа в приложение — запуск HTTP/3 и HTTP/2/TCP серверов.
+ * @brief Точка входа в приложение — запуск HTTP/3 и HTTP/2 серверов.
  *
  * Создаёт экземпляры серверов и запускает их в отдельных потоках.
  * Также запускает мониторинг базы данных.
@@ -13,9 +13,9 @@
  * @license MIT
  */
 
-#include "include/quic_udp_proxy.hpp"
-#include "include/tcp_proxy.hpp"
-#include "server/logger.h"
+#include "include/http3/quic_udp_proxy.hpp"
+#include "include/http2/tcp_proxy.hpp"
+#include "include/logger/logger.h"
 #include <thread>
 #include <iostream>
 #include <string>

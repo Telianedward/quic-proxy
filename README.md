@@ -1,3 +1,28 @@
+/opt/quic-proxy/
+├── CMakeLists.txt
+├── install.sh
+├── main.cpp
+├── include/
+│   ├── http3/
+│   │   ├── quic_udp_proxy.hpp
+│   │   ├── client_key.hpp
+│   │   └── quic_udp_deduplicator.hpp
+│   ├── http2/
+│   │   └── tcp_proxy.hpp
+│   └── logger/
+│       └── logger.h
+├── src/
+│   ├── http3/
+│   │   ├── quic_udp_proxy.cpp
+│   │   ├── client_key.cpp
+│   │   └── quic_udp_deduplicator.cpp
+│   └── http2/
+│       └── tcp_proxy.cpp
+
+
+
+
+
 # quic-proxy
 ```bash
 cd /opt

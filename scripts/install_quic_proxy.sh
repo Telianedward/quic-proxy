@@ -20,7 +20,7 @@ echo "Клонируем репозиторий..."
 git clone https://github.com/Telianedward/quic-proxy.git "$QUIC_PROXY_DIR"
 
 # 3. Проверяем наличие build.sh
-BUILD_SCRIPT="$QUIC_PROXY_DIR/build.sh"
+BUILD_SCRIPT="$QUIC_PROXY_DIR/scripts/build.sh"
 if [ ! -f "$BUILD_SCRIPT" ]; then
     echo "❌ Файл $BUILD_SCRIPT не найден в репозитории!"
     exit 1
