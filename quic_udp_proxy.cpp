@@ -245,7 +245,6 @@ int main()
             std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] select error: %s\n", __LINE__, strerror(errno));
             continue;
         }
-
         // === НАПРАВЛЕНИЕ: КЛИЕНТ → СЕРВЕР ===
         if (FD_ISSET(udp_fd, &read_fds))
         {
@@ -326,8 +325,6 @@ int main()
                 continue;
             }
 
-            // uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
-
             uint8_t *scid = reinterpret_cast<uint8_t *>(&buf[pos + 2 + dcil]);
 
             ClientKey key{};
@@ -365,6 +362,7 @@ int main()
             }
             buf[5] = (buf[5] & 0xF0) | 8;           // Устанавливаем SCIL = 8
             std::memcpy(scid, local_cid.data(), 8); // Заменяем SCID на LocalCID
+
             // Добавляем токен в пакет
             if (it != session_map.end() && it->second.token.size() > 0)
             {
@@ -373,6 +371,10 @@ int main()
                 buf[token_offset] = it->second.token.size();
                 std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
             }
+
+            // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет до отправки в РФ:\n", __LINE__);
+            print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "SEND_TO_RF");
 
             ssize_t sent = sendto(wg_fd, buf, n, 0,
                                   (struct sockaddr *)&backend_addr, sizeof(backend_addr));
@@ -384,22 +386,124 @@ int main()
             {
                 std::printf("[INFO] [quic_udp_proxy.cpp:%d] Переслано %zd байт в РФ\n", __LINE__, sent);
             }
-                  // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
-            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет до отправки в РФ:\n", __LINE__);
-            print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "SEND_TO_RF");
+        }
 
-            sent = sendto(wg_fd, buf, n, 0, // ← Убрано 'ssize_t', используется существующая переменная
-                          (struct sockaddr *)&backend_addr, sizeof(backend_addr));
+        // == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
+        if (FD_ISSET(wg_fd, &read_fds))
+        {
+            ssize_t n = recvfrom(wg_fd, buf, sizeof(buf), 0,
+                                 (struct sockaddr *)&backend_addr, &backend_len);
+
+            if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
+            {
+                if (errno != EAGAIN && errno != EWOULDBLOCK)
+                    std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom backend failed: %s\n", __LINE__, strerror(errno));
+                continue;
+            }
+
+            // === ЛОГИРОВАНИЕ ПАКЕТА ПОСЛЕ ПОЛУЧЕНИЯ ОТ РФ (СРАЗУ ПОСЛЕ recvfrom) ===
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет после получения от РФ:\n", __LINE__);
+            print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "RECV_FROM_RF");
+
+            std::printf("\n=== [SERVER → CLIENT] ===\n");
+            std::printf("[INFO] [quic_udp_proxy.cpp:%d] Получено %zd байт от сервера\n", __LINE__, n);
+            print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "REPLY_HEADER");
+
+            if (n < 6)
+            {
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Слишком короткий пакет (%zd байт)\n", __LINE__, n);
+                continue;
+            }
+
+            uint8_t packet_type = buf[0];
+            // === Обработка Retry-пакета ===
+            if ((packet_type & 0xC0) == 0xC0)
+            { // Это Long Header
+                // Проверяем, является ли пакет Retry
+                if (buf[5] == 0x00 && buf[6] == 0x00 && buf[7] == 0x00 && buf[8] == 0x00)
+                {
+                    // Это Retry-пакет
+                    LOG_INFO("Received Retry packet");
+                    // Извлекаем токен из Retry-пакета
+                    size_t token_offset = 9;
+                    size_t token_len = buf[token_offset];
+                    std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
+                    // Создаём ключ на основе IP и порта клиента (из client_addr)
+                    ClientKey key{};
+                    key.addr = client_addr.sin_addr.s_addr;
+                    key.port = client_addr.sin_port;
+                    // Первые 8 байт после токена — это SCID (используем их как CID)
+                    std::memset(key.cid, 0, 8);
+                    std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
+                    // Сохраняем токен в session_map
+                    key.token = token;
+                    session_map[key] = key; // Записываем весь объект ClientKey
+                    // Пересылаем Retry-пакет клиенту
+                    ssize_t sent = sendto(udp_fd, buf, n, 0,
+                                          (struct sockaddr *)&client_addr, sizeof(client_addr));
+                    if (sent < 0)
+                    {
+                        LOG_ERROR("sendto client failed: {}", strerror(errno));
+                    }
+                    else
+                    {
+                        LOG_INFO("Retry packet sent to client");
+                    }
+                    continue; // Пропускаем дальнейшую обработку этого пакета
+                }
+            }
+            // === Конец обработки Retry-пакета ===
+
+            if ((packet_type & 0xC0) != 0xC0)
+            {
+                std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Short Header — пропускаем\n", __LINE__);
+                continue;
+            }
+
+            size_t pos = 5;
+            uint8_t dcil = buf[pos];
+            uint8_t scil = buf[pos + 1];
+
+            if (dcil == 0 || scil == 0 || pos + 2 + dcil + scil > static_cast<size_t>(n))
+            {
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Некорректные CID\n", __LINE__);
+                continue;
+            }
+
+            uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
+            std::vector<uint8_t> local_cid_vec(dcid, dcid + 8);
+
+            auto rev_it = reverse_map.find(local_cid_vec);
+            if (rev_it == reverse_map.end())
+            {
+                std::printf("[WARNING] [quic_udp_proxy.cpp:%d] Неизвестный LocalCID — пакет потерялся\n", __LINE__);
+                continue;
+            }
+
+            ClientKey orig_key = rev_it->second;
+
+            // === ВОССТАНОВЛЕНИЕ ОРИГИНАЛЬНОГО SCID КАК DCID ===
+            buf[5] = (8 << 4) | (buf[5] & 0x0F); // DCIL = 8
+            std::memcpy(dcid, orig_key.cid, 8);
+
+            struct sockaddr_in client_dest{};
+            client_dest.sin_family = AF_INET;
+            client_dest.sin_addr.s_addr = orig_key.addr;
+            client_dest.sin_port = orig_key.port;
+
+            ssize_t sent = sendto(udp_fd, buf, n, 0,
+                                  (struct sockaddr *)&client_dest, sizeof(client_dest));
+
             if (sent < 0)
             {
-                std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto backend failed: %s\n", __LINE__, strerror(errno));
+                std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto client failed: %s\n", __LINE__, strerror(errno));
             }
             else
             {
-                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Переслано %zd байт в РФ\n", __LINE__, sent);
+                std::printf("[INFO] [quic_udp_proxy.cpp:%d] Отправлено %zd байт клиенту %s:%u\n",
+                            __LINE__, sent, inet_ntoa(client_dest.sin_addr), ntohs(client_dest.sin_port));
             }
         }
-
         // == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
         if (FD_ISSET(wg_fd, &read_fds))
         {
