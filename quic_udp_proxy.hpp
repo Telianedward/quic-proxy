@@ -45,6 +45,27 @@ static_assert(MAX_PACKET_SIZE <= 65536, "MAX_PACKET_SIZE должен быть <
 // === Глобальные переменные ===
 
 /**
+ * @brief Хеш-функция для std::vector<uint8_t>
+ *
+ * Используется для хеширования CID в session_map.
+ */
+struct VectorHash
+{
+    size_t operator()(const std::vector<uint8_t> &v) const noexcept;
+};
+
+/**
+ * @brief Оператор сравнения для векторов байтов
+ *
+ * Используется для сравнения CID в reverse_map.
+ */
+struct VectorEqual
+{
+    bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept;
+};
+
+
+/**
  * @brief Маппинг ключа клиента → локальный CID.
  *
  * Используется для восстановления оригинального SCID при ответе от сервера.
