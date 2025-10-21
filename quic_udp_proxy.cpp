@@ -36,21 +36,6 @@ std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 Deduplicator deduplicator;
 // === Реализация функций ===
 
-size_t VectorHash::operator()(const std::vector<uint8_t> &v) const noexcept
-{
-    std::hash<uint64_t> hasher;
-    size_t result = 0;
-    for (size_t i = 0; i < v.size(); ++i)
-    {
-        result ^= hasher(v[i]) + 2654435761U + (result << 6) + (result >> 2);
-    }
-    return result;
-}
-
-bool VectorEqual::operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept
-{
-    return a == b;
-}
 
 
 int set_nonblocking(int fd) noexcept
