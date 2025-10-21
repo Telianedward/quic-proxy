@@ -12,6 +12,7 @@
  * @license MIT
  */
 // include/quic_udp_deduplicator.hpp
+// include/quic_udp_deduplicator.hpp
 
 #pragma once
 #include <unordered_map>
@@ -19,48 +20,46 @@
 #include <cstdint>
 #include <string>
 #include "client_key.hpp"
+
 /**
  * @brief Класс для дедупликации QUIC-пакетов.
  *
  * Хранит информацию о первом Initial-пакете для каждого клиента.
  * Позволяет определить, является ли пакет повторным.
  */
-class Deduplicator
-{
+class Deduplicator {
 public:
     /**
      * @brief Структура для хранения информации о первом Initial-пакете.
      */
-    struct PacketInfo
-    {
+    struct PacketInfo {
         std::vector<uint8_t> token; ///< Токен из Retry-пакета
         std::vector<uint8_t> scid;  ///< SCID из первого Initial-пакета
+        uint64_t packet_number;     ///< Номер пакета
         // Можно добавить другие поля, если нужно
     };
 
     /**
      * @brief Структура для ключа дедупликации.
      */
-    struct PacketKey
-    {
-        ClientKey client_key;      ///< Ключ клиента (IP + порт)
-        std::vector<uint8_t> scid; ///< SCID
-        std::vector<uint8_t> dcid; ///< DCID
-        uint64_t packet_number;    ///< Номер пакета
+    struct PacketKey {
+        ClientKey client_key;       ///< Ключ клиента (IP + порт)
+        std::vector<uint8_t> scid;  ///< SCID
+        std::vector<uint8_t> dcid;  ///< DCID
+        uint64_t packet_number;     ///< Номер пакета
     };
+
     /**
      * @brief Хеш-функция для PacketKey.
      */
-    struct PacketKeyHash
-    {
+    struct PacketKeyHash {
         size_t operator()(const PacketKey &key) const noexcept;
     };
 
     /**
      * @brief Оператор сравнения для PacketKey.
      */
-    struct PacketKeyEqual
-    {
+    struct PacketKeyEqual {
         bool operator()(const PacketKey &a, const PacketKey &b) const noexcept;
     };
 
@@ -80,10 +79,11 @@ public:
      * @brief Проверяет, является ли пакет повторным.
      * @param key Ключ клиента.
      * @param scid SCID из пакета.
-     * @param token Токен из пакета.
+     * @param dcid DCID из пакета.
+     * @param packet_number Номер пакета.
      * @return true, если пакет повторный, false — иначе.
      */
-    [[nodiscard]] bool is_duplicate(const ClientKey &key, const std::vector<uint8_t> &scid, const std::vector<uint8_t> &token) const;
+    [[nodiscard]] bool is_duplicate(const ClientKey &key, const std::vector<uint8_t> &scid, const std::vector<uint8_t> &dcid, uint64_t packet_number) const;
 
     /**
      * @brief Удаляет информацию о соединении.
@@ -92,5 +92,5 @@ public:
     void remove_connection(const ClientKey &key);
 
 private:
-    std::unordered_map<ClientKey, PacketInfo, ClientKeyHash, ClientKeyEqual> packet_map_;
+    std::unordered_map<PacketKey, bool, PacketKeyHash, PacketKeyEqual> seen_packets_;
 };
