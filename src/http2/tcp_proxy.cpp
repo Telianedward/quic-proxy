@@ -13,7 +13,7 @@
  * @license MIT
  */
 
-#include "../include/tcp_proxy.hpp"
+#include "../../include/tcp_proxy.hpp"
 #include <cstring>
 #include <algorithm>
 
