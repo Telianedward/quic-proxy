@@ -30,12 +30,6 @@ add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 # Поиск библиотеки fmt
 find_package(fmt CONFIG REQUIRED)
 
-# Поиск библиотеки quiche
-find_library(QUICHE_LIB quiche)
-if(NOT QUICHE_LIB)
-    message(FATAL_ERROR "Библиотека quiche не найдена. Установите libquiche-dev.")
-endif()
-
 # === Источники ===
 add_executable(quic_proxy
     main.cpp
@@ -45,9 +39,8 @@ add_executable(quic_proxy
     src/http3/quic_udp_deduplicator.cpp
 )
 
-# Линковка: pthread, fmt и quiche
+# Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
     pthread
     fmt::fmt
-    ${QUICHE_LIB}
 )
