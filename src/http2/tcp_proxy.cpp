@@ -18,10 +18,7 @@
 #include <algorithm>
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port)
-{
-    (void)listen_port; // Подавление предупреждения "unused parameter"
-}
+    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port) {}
 
 bool TcpProxy::run() {
     // Создаем сокет для прослушивания
@@ -111,6 +108,22 @@ bool TcpProxy::run() {
             // Обработка данных от клиентов и сервера
             handle_io_events();
         }
+
+        // Проверка таймаутов
+        time_t now = time(nullptr);
+        for (auto it = timeouts_.begin(); it != timeouts_.end(); ) {
+            if (now - it->second > 30) { // Таймаут 30 секунд
+                int client_fd = it->first;
+                int backend_fd = connections_[client_fd];
+                ::close(client_fd);
+                ::close(backend_fd);
+                connections_.erase(client_fd);
+                timeouts_.erase(it++);
+                LOG_INFO("TCP-соединение закрыто по таймауту: клиент {}, бэкенд {}", client_fd, backend_fd);
+            } else {
+                ++it;
+            }
+        }
     }
 
     // Закрываем все соединения
@@ -198,6 +211,7 @@ void TcpProxy::handle_new_connection() noexcept {
 
     // Сохраняем соединение
     connections_[client_fd] = backend_fd;
+    timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
 
     LOG_INFO("Новое TCP-соединение: клиент {}:{}, бэкенд {}:{}",
              inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port),
@@ -232,7 +246,11 @@ void TcpProxy::handle_io_events() noexcept {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
+            } else {
+                // Обновляем таймаут
+                timeouts_[client_fd] = time(nullptr);
             }
         }
 
@@ -243,7 +261,11 @@ void TcpProxy::handle_io_events() noexcept {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
+            } else {
+                // Обновляем таймаут
+                timeouts_[client_fd] = time(nullptr);
             }
         }
     }

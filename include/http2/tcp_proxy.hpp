@@ -27,7 +27,6 @@
 #include <sys/select.h>
 #include <thread>
 #include "../logger/logger.h"
-
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.
  *
@@ -63,6 +62,8 @@ private:
 
     // Карта активных соединений: client_fd -> backend_fd
     std::unordered_map<int, int> connections_;
+    // Карта таймаутов: client_fd -> время последней активности
+    std::unordered_map<int, time_t> timeouts_;
 
     /**
      * @brief Устанавливает неблокирующий режим сокета.
