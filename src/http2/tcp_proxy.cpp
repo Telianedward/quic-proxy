@@ -254,10 +254,20 @@ bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
 
     if (bytes_read > 0) {
-        ssize_t bytes_sent = send(to_fd, buffer, bytes_read, 0);
-        if (bytes_sent < 0) {
-            LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
-            return false;
+        ssize_t total_sent = 0;
+        while (total_sent < bytes_read) {
+            ssize_t bytes_sent = send(to_fd, buffer + total_sent, bytes_read - total_sent, 0);
+            if (bytes_sent < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // Буфер отправки заполнен — попробуем позже
+                    LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
+                    return true; // Соединение активно, продолжаем
+                } else {
+                    LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
+                    return false;
+                }
+            }
+            total_sent += bytes_sent;
         }
         LOG_DEBUG("Передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         return true;
