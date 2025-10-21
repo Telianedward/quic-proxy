@@ -75,6 +75,7 @@ add_custom_target(install-and-run ALL
     COMMAND ${CMAKE_COMMAND} --build . --target install
     COMMAND ${CMAKE_COMMAND} --build . --target reload-systemd
     COMMAND ${CMAKE_COMMAND} --build . --target enable-and-start-service
-    COMMAND ${CMAKE_COMMAND} --build . --target journalctl
+    # УБЕРИТЕ ЭТУ СТРОКУ:
+    # COMMAND ${CMAKE_COMMAND} --build . --target journalctl
     COMMENT "✅ Полная установка и запуск quic-proxy завершены."
 )
