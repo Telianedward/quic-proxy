@@ -434,13 +434,12 @@ int main()
                 LOG_INFO("Переслано {} байт в РФ", sent);
             }
         }
-        // == = НАПРАВЛЕНИЕ : СЕРВЕР → КЛИЕНТ == =
+              // === НАПРАВЛЕНИЕ: СЕРВЕР → КЛИЕНТ ===
         if (FD_ISSET(wg_fd, &read_fds))
         {
             // === Получение пакета от сервера в России ===
             ssize_t n = recvfrom(wg_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&backend_addr, &backend_len);
-
             // Проверка на ошибку или неблокирующий режим.
             if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
@@ -510,7 +509,7 @@ int main()
 
                     continue; // Пропускаем дальнейшую обработку этого пакета
                 }
-            }// === Конец обработки Retry-пакета ===
+            } // === Конец обработки Retry-пакета ===
 
             // Проверяем, является ли пакет Short Header (биты 7-6 != 11).
             if ((packet_type & 0xC0) != 0xC0)
@@ -532,10 +531,10 @@ int main()
             }
 
             // === Извлечение DCID ===
-            // dcid — указатель на DCID в пакете.
             uint8_t *dcid = reinterpret_cast<uint8_t *>(&buf[pos + 2]);
 
-            // === Создание ключа для поиска сессии ===
+            // === Поиск сессии по DCID ===
+            // Для ответа от сервера нужно найти сессию по DCID, который должен соответствовать SCID клиента.
             ClientKey key{};
             bool found = false;
 
@@ -582,7 +581,6 @@ int main()
                          ntohs(client_dest.sin_port));
             }
         }
-
     }
 
     std::printf("[INFO] [quic_udp_proxy.cpp:%d] Прокси остановлен.\n", __LINE__);
