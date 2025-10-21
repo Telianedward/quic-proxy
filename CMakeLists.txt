@@ -7,7 +7,7 @@ endif()
 
 # Устанавливаем версию проекта
 if(NOT DEFINED APP_VERSION)
-    set(APP_VERSION "0.1.0" CACHE STRING "Версия проекта") # Используем числовую версию
+    set(APP_VERSION "0.1.0" CACHE STRING "Версия проекта")
 endif()
 
 # Проект
@@ -27,11 +27,17 @@ set(CMAKE_BUILD_TYPE Release) # Или Debug, если нужно
 # Добавляем флаги компиляции
 add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 
+# Поиск библиотеки fmt
+find_package(fmt CONFIG REQUIRED)
+
 # Источники
 add_executable(quic_proxy quic_udp_proxy.cpp)
 
-# Линковка: pthread
-target_link_libraries(quic_proxy PRIVATE pthread)
+# Линковка: pthread и fmt
+target_link_libraries(quic_proxy PRIVATE
+    pthread
+    fmt::fmt
+)
 
 # Установка исполняемого файла в /opt/quic-proxy/
 install(TARGETS quic_proxy
