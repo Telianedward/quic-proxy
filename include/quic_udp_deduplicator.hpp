@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
-#include "client_key.hpp"
+#include "include/client_key.hpp"
 /**
  * @brief Класс для дедупликации QUIC-пакетов.
  *
@@ -22,30 +22,6 @@ public:
         // Можно добавить другие поля, если нужно
     };
 
-    /**
-     * @brief Ключ для маппинга (IP + порт + SCID).
-     */
-    struct ClientKey {
-        uint32_t addr;          ///< IPv4-адрес клиента
-        uint16_t port;          ///< Порт клиента
-        uint8_t cid[8];         ///< Первые 8 байт SCID
-
-        bool operator==(const ClientKey &other) const noexcept;
-    };
-
-    /**
-     * @brief Хеш-функция для ClientKey.
-     */
-    struct ClientKeyHash {
-        size_t operator()(const ClientKey &k) const noexcept;
-    };
-
-    /**
-     * @brief Оператор сравнения для ClientKey.
-     */
-    struct ClientKeyEqual {
-        bool operator()(const ClientKey &a, const ClientKey &b) const noexcept;
-    };
 
     /**
      * @brief Конструктор.
