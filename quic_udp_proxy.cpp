@@ -384,12 +384,12 @@ int main()
             {
                 std::printf("[INFO] [quic_udp_proxy.cpp:%d] Переслано %zd байт в РФ\n", __LINE__, sent);
             }
-            // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
+                  // === ЛОГИРОВАНИЕ ПАКЕТА ДО ОТПРАВКИ В РФ ===
             std::printf("[INFO] [quic_udp_proxy.cpp:%d] Пакет до отправки в РФ:\n", __LINE__);
             print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "SEND_TO_RF");
 
-            ssize_t sent = sendto(wg_fd, buf, n, 0,
-                                  (struct sockaddr *)&backend_addr, sizeof(backend_addr));
+            sent = sendto(wg_fd, buf, n, 0, // ← Убрано 'ssize_t', используется существующая переменная
+                          (struct sockaddr *)&backend_addr, sizeof(backend_addr));
             if (sent < 0)
             {
                 std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] sendto backend failed: %s\n", __LINE__, strerror(errno));
