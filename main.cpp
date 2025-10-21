@@ -38,7 +38,7 @@ int main() {
         const int http3_port = 443;
         const int http2_port = 443; // TCP-прокси слушает тот же порт
         const std::string backend_ip = "10.8.0.11"; // IP сервера в России через WireGuard
-        const int backend_port = 8585; // Порт H3-сервера в РФ
+        const int backend_port = 8586; // Порт H3-сервера в РФ
 
         // 🚀 Создание и запуск серверов
         QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_port);
