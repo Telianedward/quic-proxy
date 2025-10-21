@@ -32,11 +32,9 @@
 #include "client_key.hpp"
 #include "quic_udp_deduplicator.hpp"
 
-/**
- * @brief Класс QUIC-UDP прокси.
- *
- * Слушает входящие QUIC-пакеты на порту 443 и перенаправляет их на сервер в России (через WireGuard).
- */
+// === Константы ===
+constexpr size_t MAX_PACKET_SIZE = 1500; // Максимальный размер UDP-пакета
+
 // === Хэш-функции и равенство для std::vector<uint8_t> ===
 struct VectorHash {
     size_t operator()(const std::vector<uint8_t> &v) const noexcept {

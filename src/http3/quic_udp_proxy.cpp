@@ -214,6 +214,8 @@ void QuicUdpProxy::signal_handler(int sig) {
 }
 
 void QuicUdpProxy::handle_client_packet(char *buf, ssize_t n, const sockaddr_in &client_addr, socklen_t client_len) noexcept {
+    (void)client_len; // Подавление предупреждения "unused parameter"
+
     std::string client_ip = inet_ntoa(client_addr.sin_addr);
     uint16_t client_port = ntohs(client_addr.sin_port);
 
@@ -368,6 +370,9 @@ void QuicUdpProxy::handle_client_packet(char *buf, ssize_t n, const sockaddr_in 
 }
 
 void QuicUdpProxy::handle_backend_packet(char *buf, ssize_t n, const sockaddr_in &backend_addr, socklen_t backend_len) noexcept {
+    (void)backend_addr; // Подавление предупреждения "unused parameter"
+    (void)backend_len; // Подавление предупреждения "unused parameter"
+
     LOG_INFO("Пакет после получения от РФ:");
     print_hex(reinterpret_cast<uint8_t *>(buf), static_cast<size_t>(n), "RECV_FROM_RF");
     LOG_INFO("=== [SERVER → CLIENT] ===");
