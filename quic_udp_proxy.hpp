@@ -92,7 +92,7 @@ static_assert(MAX_PACKET_SIZE <= 65536, "MAX_PACKET_SIZE должен быть <
  *
  * Используется для восстановления оригинального SCID при ответе от сервера.
  */
-extern std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
+extern std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 
 /**
  * @brief Обратный маппинг: локальный CID → ключ клиента.

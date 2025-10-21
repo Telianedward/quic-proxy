@@ -28,7 +28,8 @@
 
 // === Инициализация глобальных переменных ===
 
-std::unordered_map<ClientKey, std::vector<uint8_t>, ClientKeyHash> session_map;
+// Исправлено: session_map теперь хранит ClientKey → ClientKey
+std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
 std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
 
 // === Реализация функций ===
@@ -59,8 +60,8 @@ bool ClientKey::operator==(const ClientKey &other) const noexcept
 size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
 {
     size_t result = std::hash<uint32_t>()(k.addr) ^
-                    (std::hash<uint16_t>()(k.port) << 1) ^
-                    std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
+                   (std::hash<uint16_t>()(k.port) << 1) ^
+                   std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
     // Хешируем токен
     for (uint8_t b : k.token)
     {
@@ -279,7 +280,7 @@ int main()
             }
 
             // === Обработка Retry-пакета ===
-         if (n >= 9 && static_cast<unsigned char>(buf[0]) == 0xF0)
+            if (n >= 9 && static_cast<unsigned char>(buf[0]) == 0xF0)
             {
                 // Это Retry-пакет
                 LOG_INFO("Received Retry packet");
@@ -295,16 +296,14 @@ int main()
                 std::memset(key.cid, 0, 8);
                 std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
                 // Сохраняем токен в session_map
-                session_map[key].token = token;
+                key.token = token;
+                session_map[key] = key; // Записываем весь объект ClientKey
                 // Пересылаем Retry-пакет клиенту
                 ssize_t sent = sendto(udp_fd, buf, n, 0,
                                       (struct sockaddr *)&client_addr, sizeof(client_addr));
-                if (sent < 0)
-                {
+                if (sent < 0) {
                     LOG_ERROR("sendto client failed: {}", strerror(errno));
-                }
-                else
-                {
+                } else {
                     LOG_INFO("Retry packet sent to client");
                 }
                 continue; // Пропускаем дальнейшую обработку этого пакета
@@ -338,7 +337,7 @@ int main()
             if (it == session_map.end())
             {
                 local_cid = generate_local_cid();
-                session_map[key] = local_cid;
+                session_map[key] = key; // Записываем весь объект ClientKey
                 reverse_map[local_cid] = key;
                 std::printf("[INFO] [quic_udp_proxy.cpp:%d] Новая сессия: %s:%u → LocalCID:", __LINE__, client_ip.c_str(), client_port);
                 for (uint8_t b : local_cid)
@@ -347,7 +346,7 @@ int main()
             }
             else
             {
-                local_cid = it->second;
+                local_cid = it->second.cid; // Используем CID из сохранённого ключа
                 std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse LocalCID:", __LINE__);
                 for (uint8_t b : local_cid)
                     printf("%02x", b);
@@ -361,14 +360,14 @@ int main()
                 scil = 8;
             }
             buf[5] = (buf[5] & 0xF0) | 8;           // Устанавливаем SCIL = 8
-            std::memcpy(scid, local_cid.data(), 8); // Заменяем SCID на LocalCID
+            std::memcpy(scid, local_cid.data(), 8);   // Заменяем SCID на LocalCID
             // Добавляем токен в пакет
-            if (session_map[key].token.size() > 0)
+            if (it != session_map.end() && it->second.token.size() > 0)
             {
                 // Вставляем токен в пакет
                 size_t token_offset = 9;
-                buf[token_offset] = session_map[key].token.size();
-                std::memcpy(buf + token_offset + 1, session_map[key].token.data(), session_map[key].token.size());
+                buf[token_offset] = it->second.token.size();
+                std::memcpy(buf + token_offset + 1, it->second.token.data(), it->second.token.size());
             }
 
             ssize_t sent = sendto(wg_fd, buf, n, 0,
@@ -419,8 +418,16 @@ int main()
                     size_t token_offset = 9;
                     size_t token_len = buf[token_offset];
                     std::vector<uint8_t> token(buf + token_offset + 1, buf + token_offset + 1 + token_len);
+                    // Создаём ключ на основе IP и порта клиента (из client_addr)
+                    ClientKey key{};
+                    key.addr = client_addr.sin_addr.s_addr;
+                    key.port = client_addr.sin_port;
+                    // Первые 8 байт после токена — это SCID (используем их как CID)
+                    std::memset(key.cid, 0, 8);
+                    std::memcpy(key.cid, buf + 9, 8); // Первые 8 байт после токена — это SCID
                     // Сохраняем токен в session_map
-                    session_map[key].token = token;
+                    key.token = token;
+                    session_map[key] = key; // Записываем весь объект ClientKey
                     // Пересылаем Retry-пакет клиенту
                     ssize_t sent = sendto(udp_fd, buf, n, 0,
                                           (struct sockaddr *)&client_addr, sizeof(client_addr));
