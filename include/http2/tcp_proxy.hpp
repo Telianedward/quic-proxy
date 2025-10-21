@@ -26,7 +26,7 @@
 #include <cerrno>
 #include <sys/select.h>
 #include <thread>
-#include "server/logger.h"
+#include "logger/logger.h"
 
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.

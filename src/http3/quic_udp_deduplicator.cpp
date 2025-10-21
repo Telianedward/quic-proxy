@@ -12,8 +12,8 @@
  * @license MIT
  */
 // src/quic_udp_deduplicator.cpp
-#include "../include/quic_udp_deduplicator.hpp"
-#include "../include/client_key.hpp"
+#include "../include/http3/quic_udp_deduplicator.hpp"
+#include "../include/http3/client_key.hpp"
 #include <cstring>
 
 size_t Deduplicator::PacketKeyHash::operator()(const PacketKey &key) const noexcept

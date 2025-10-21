@@ -28,9 +28,9 @@
 #include <cerrno>
 #include <sys/select.h>
 #include <thread>
-#include "server/logger.h"
-#include "include/client_key.hpp"
-#include "include/quic_udp_deduplicator.hpp"
+#include "logger/logger.h"
+#include "include/http3/client_key.hpp"
+#include "include/http3/quic_udp_deduplicator.hpp"
 
 /**
  * @brief Класс QUIC-UDP прокси.
