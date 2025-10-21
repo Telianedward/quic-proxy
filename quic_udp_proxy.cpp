@@ -346,7 +346,7 @@ int main()
             }
             else
             {
-                local_cid = it->second.cid; // Используем CID из сохранённого ключа
+                local_cid.assign(it->second.cid, it->second.cid + 8);// Используем CID из сохранённого ключа
                 std::printf("[DEBUG] [quic_udp_proxy.cpp:%d] Reuse LocalCID:", __LINE__);
                 for (uint8_t b : local_cid)
                     printf("%02x", b);
