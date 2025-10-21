@@ -1,3 +1,6 @@
+
+
+// "quic_udp_proxy.cpp"
 /**
  * @file quic_udp_proxy.cpp
  * @brief Реализация методов, объявленных в соответствующем .h файле.
@@ -537,25 +540,15 @@ int main()
 
             // === Создание ключа для поиска сессии ===
             ClientKey key{};
-            bool found = false;
+            key.addr = client_addr.sin_addr.s_addr; // IPv4-адрес клиента
+            key.port = client_addr.sin_port;        // Порт клиента
+            std::memset(key.cid, 0, 8);             // Заполняем cid нулями
+            std::memcpy(key.cid, dcid, 8);          // Копируем DCID из пакета
 
-            // Перебираем все сессии в session_map
-            for (const auto &pair : session_map)
-            {
-                const ClientKey &stored_key = pair.first;
-                // Проверяем, совпадает ли DCID из пакета с SCID, сохраненным в сессии
-                // Сравниваем только те байты, которые есть в DCID и SCID
-                size_t compare_len = std::min(static_cast<size_t>(scil), 8UL);
-                if (std::memcmp(stored_key.cid, dcid, compare_len) == 0)
-                {
-                    // Нашли сессию!
-                    key = stored_key;
-                    found = true;
-                    break;
-                }
-            }
+            // === Поиск сессии в session_map ===
+            auto it = session_map.find(key);
 
-            if (!found)
+            if (it == session_map.end())
             {
                 LOG_WARN("Неизвестный DCID — пакет потерялся");
                 continue;
@@ -592,3 +585,401 @@ int main()
         ::close(wg_fd);
     return 0;
 }
+
+// "quic_udp_proxy.hpp"
+/**
+ * @file quic_udp_proxy.hpp
+ * @brief Краткое описание назначения заголовочного файла.
+ *
+ * Более подробное описание того, какие классы, функции, структуры объявляет файл.
+ * Может содержать информацию о зависимости от других модулей или ограничениях использования.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-09-29
+ * @version 1.0
+ * @license MIT
+ *
+ * @note Этот файл требует стандарта C++23 (ISO/IEC 14882:2024).
+ * Используются: std::vector, std::unordered_map, std::random_device, std::mt19937.
+ *
+ * @note Внешние зависимости:
+ * - Стандартная библиотека C++23.
+ * - Системные заголовки: <sys/socket.h>, <netinet/in.h>, <unistd.h>.
+ * - Не требует сторонних библиотек.
+ */
+
+#pragma once
+
+#include <iostream>
+#include <cstring>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <cstdint>   // Для uint8_t, uint16_t, uint32_t
+#include <algorithm> // Для std::min, std::max
+#include <cstdlib>   // Для std::srand, std::rand
+#include "server/logger.h"
+#include "include/client_key.hpp"
+
+
+// === Глобальные константы ===
+constexpr char BACKEND_IP[] = "10.8.0.11";   ///< IP сервера в РФ через WireGuard
+constexpr int BACKEND_PORT = 8585;           ///< Порт H3-сервера в РФ
+constexpr int LISTEN_PORT = 443;             ///< Порт, на котором слушает прокси (HTTPS)
+constexpr size_t MAX_PACKET_SIZE = 1500;     ///< Максимальный размер UDP-пакета
+
+static_assert(MAX_PACKET_SIZE <= 65536, "MAX_PACKET_SIZE должен быть <= 65536");
+
+// === Глобальные переменные ===
+
+/**
+ * @brief Хеш-функция для std::vector<uint8_t>
+ *
+ * Используется для хеширования CID в session_map.
+ */
+struct VectorHash
+{
+    size_t operator()(const std::vector<uint8_t> &v) const noexcept;
+};
+
+/**
+ * @brief Оператор сравнения для векторов байтов
+ *
+ * Используется для сравнения CID в reverse_map.
+ */
+struct VectorEqual
+{
+    bool operator()(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) const noexcept;
+};
+
+
+/**
+ * @brief Маппинг ключа клиента → локальный CID.
+ *
+ * Используется для восстановления оригинального SCID при ответе от сервера.
+ */
+extern std::unordered_map<ClientKey, ClientKey, ClientKeyHash> session_map;
+
+/**
+ * @brief Обратный маппинг: локальный CID → ключ клиента.
+ *
+ * Используется для поиска клиента по CID при получении ответа от сервера.
+ */
+extern std::unordered_map<std::vector<uint8_t>, ClientKey, VectorHash, VectorEqual> reverse_map;
+
+// === Функции ===
+
+/**
+ * @brief Устанавливает неблокирующий режим сокета
+ * @param fd Дескриптор сокета
+ * @return 0 при успехе, -1 при ошибке
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+[[nodiscard]] int set_nonblocking(int fd) noexcept;
+
+/**
+ * @brief Генерирует случайный 8-байтовый CID
+ * @return Вектор из 8 случайных байт
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+[[nodiscard]] std::vector<uint8_t> generate_local_cid() noexcept;
+
+/**
+ * @brief Определяет внешний IP-адрес системы через подключение к 8.8.8.8:53
+ * @param ip_out Строка для сохранения IP
+ * @return true, если удалось определить
+ * @throws Никаких исключений — функция не выбрасывает.
+ * @warning Может вернуть неверный IP при нескольких интерфейсах
+ */
+[[nodiscard]] bool get_external_ip(std::string &ip_out) noexcept;
+
+/**
+ * @brief Выводит байты в hex-формате (первые 32 байта)
+ * @param data Указатель на данные
+ * @param len Длина данных
+ * @param label Метка для вывода (например, "HEADER")
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+void print_hex(const uint8_t *data, size_t len, const std::string &label) noexcept;
+
+/**
+ * @brief Обработчик сигналов завершения (SIGINT, SIGTERM)
+ * @param sig Номер сигнала
+ * @throws Никаких исключений — функция не выбрасывает.
+ */
+void signal_handler(int sig);
+
+// "src/client_key.cpp"
+/**
+ * @file client_key.cpp
+ * @brief Реализация методов, объявленных в соответствующем .h файле.
+ *
+ * Здесь реализуются методы, утилитные функции, бизнес-логика.
+ * Файл работает с PostgreSQL через libpqxx и соответствует стандартам C++23.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-10-21
+ * @version 1.0
+ * @license MIT
+ */
+
+// src/client_key.cpp
+#include "../include/client_key.hpp"
+
+size_t ClientKeyHash::operator()(const ClientKey &k) const noexcept
+{
+    std::hash<uint32_t> hasher;
+    size_t result = hasher(k.addr) ^
+                    (std::hash<uint16_t>()(k.port) << 1) ^
+                    std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(k.cid));
+    return result;
+}
+
+bool ClientKeyEqual::operator()(const ClientKey &a, const ClientKey &b) const noexcept
+{
+    return a.addr == b.addr && a.port == b.port &&
+           std::memcmp(a.cid, b.cid, 8) == 0 &&
+           a.token == b.token; // Добавлено сравнение токена
+}
+
+bool ClientKey::operator==(const ClientKey &other) const noexcept
+{
+    return addr == other.addr && port == other.port &&
+           std::memcmp(cid, other.cid, 8) == 0 &&
+           token == other.token; // Добавлено сравнение токена
+}
+
+// "src/quic_udp_deduplicator.cpp"
+/**
+ * @file quic_udp_deduplicator.cpp
+ * @brief Реализация методов, объявленных в соответствующем .h файле.
+ *
+ * Здесь реализуются методы, утилитные функции, бизнес-логика.
+ * Файл работает с PostgreSQL через libpqxx и соответствует стандартам C++23.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-10-21
+ * @version 1.0
+ * @license MIT
+ */
+// src/quic_udp_deduplicator.cpp
+#include "../include/quic_udp_deduplicator.hpp"
+#include "../include/client_key.hpp"
+#include <cstring>
+
+size_t Deduplicator::PacketKeyHash::operator()(const PacketKey &key) const noexcept
+{
+    size_t result = 0;
+    // Хэшируем ClientKey
+    result ^= std::hash<uint32_t>()(key.client_key.addr);
+    result ^= std::hash<uint16_t>()(key.client_key.port);
+    for (uint8_t b : key.client_key.cid)
+    {
+        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
+    }
+    // Хэшируем SCID
+    for (uint8_t b : key.scid)
+    {
+        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
+    }
+    // Хэшируем DCID
+    for (uint8_t b : key.dcid)
+    {
+        result ^= std::hash<uint8_t>()(b) + 2654435761U + (result << 6) + (result >> 2);
+    }
+    // Хэшируем Packet Number
+    result ^= std::hash<uint64_t>()(key.packet_number);
+    return result;
+}
+
+bool Deduplicator::PacketKeyEqual::operator()(const PacketKey &a, const PacketKey &b) const noexcept
+{
+    return a.client_key == b.client_key &&
+           a.scid == b.scid &&
+           a.dcid == b.dcid &&
+           a.packet_number == b.packet_number;
+}
+
+void Deduplicator::add_packet(const ClientKey &key, const PacketInfo &info)
+{
+    PacketKey packet_key{};
+    packet_key.client_key = key;
+    packet_key.scid = info.scid;
+    packet_key.dcid = {}; // DCID пока неизвестен, можно установить позже
+    packet_key.packet_number = info.packet_number;
+
+    seen_packets_[packet_key] = true;
+}
+
+bool Deduplicator::is_duplicate(const ClientKey &key, const std::vector<uint8_t> &scid, const std::vector<uint8_t> &dcid, uint64_t packet_number) const
+{
+    PacketKey packet_key{};
+    packet_key.client_key = key;
+    packet_key.scid = scid;
+    packet_key.dcid = dcid;
+    packet_key.packet_number = packet_number;
+
+    auto it = seen_packets_.find(packet_key);
+    if (it != seen_packets_.end())
+    {
+        return true; // Это дубликат
+    }
+
+    return false; // Это первый пакет
+}
+
+void Deduplicator::remove_connection(const ClientKey &key)
+{
+    (void)key; // Подавление предупреждения "unused parameter"
+}
+
+// "include/client_key.hpp"
+// include/client_key.hpp
+/**
+ * @file client_key.hpp
+ * @brief Краткое описание назначения заголовочного файла.
+ *
+ * Более подробное описание того, какие классы, функции, структуры объявляет файл.
+ * Может содержать информацию о зависимости от других модулей или ограничениях использования.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-10-21
+ * @version 1.0
+ * @license MIT
+ */
+#pragma once
+#include <vector>
+#include <cstdint>
+#include <cstring>
+#include <unordered_map>
+
+/**
+ * @brief Структура для хранения ключа клиента.
+ *
+ * Используется как ключ в session_map и Deduplicator.
+ */
+struct ClientKey {
+    uint32_t addr;          ///< IPv4-адрес клиента
+    uint16_t port;          ///< Порт клиента
+    uint8_t cid[8];         ///< Первые 8 байт SCID
+    std::vector<uint8_t> token; ///< Токен из Retry-пакета
+
+    bool operator==(const ClientKey &other) const noexcept;
+};
+
+/**
+ * @brief Хеш-функция для ClientKey.
+ */
+struct ClientKeyHash {
+    size_t operator()(const ClientKey &k) const noexcept;
+};
+
+/**
+ * @brief Оператор сравнения для ClientKey.
+ */
+struct ClientKeyEqual {
+    bool operator()(const ClientKey &a, const ClientKey &b) const noexcept;
+};
+
+
+// "include/quic_udp_deduplicator.hpp"
+/**
+ * @file quic_udp_deduplicator.hpp
+ * @brief Краткое описание назначения заголовочного файла.
+ *
+ * Более подробное описание того, какие классы, функции, структуры объявляет файл.
+ * Может содержать информацию о зависимости от других модулей или ограничениях использования.
+ *
+ * @author Telian Edward <telianedward@icloud.com>
+ * @assisted-by AI-Assistant
+ * @date 2025-10-21
+ * @version 1.0
+ * @license MIT
+ */
+// include/quic_udp_deduplicator.hpp
+// include/quic_udp_deduplicator.hpp
+
+#pragma once
+#include <unordered_map>
+#include <vector>
+#include <cstdint>
+#include <string>
+#include "client_key.hpp"
+
+/**
+ * @brief Класс для дедупликации QUIC-пакетов.
+ *
+ * Хранит информацию о первом Initial-пакете для каждого клиента.
+ * Позволяет определить, является ли пакет повторным.
+ */
+class Deduplicator {
+public:
+    /**
+     * @brief Структура для хранения информации о первом Initial-пакете.
+     */
+    struct PacketInfo {
+        std::vector<uint8_t> token; ///< Токен из Retry-пакета
+        std::vector<uint8_t> scid;  ///< SCID из первого Initial-пакета
+        uint64_t packet_number;     ///< Номер пакета
+        // Можно добавить другие поля, если нужно
+    };
+
+    /**
+     * @brief Структура для ключа дедупликации.
+     */
+    struct PacketKey {
+        ClientKey client_key;       ///< Ключ клиента (IP + порт)
+        std::vector<uint8_t> scid;  ///< SCID
+        std::vector<uint8_t> dcid;  ///< DCID
+        uint64_t packet_number;     ///< Номер пакета
+    };
+
+    /**
+     * @brief Хеш-функция для PacketKey.
+     */
+    struct PacketKeyHash {
+        size_t operator()(const PacketKey &key) const noexcept;
+    };
+
+    /**
+     * @brief Оператор сравнения для PacketKey.
+     */
+    struct PacketKeyEqual {
+        bool operator()(const PacketKey &a, const PacketKey &b) const noexcept;
+    };
+
+    /**
+     * @brief Конструктор.
+     */
+    Deduplicator() = default;
+
+    /**
+     * @brief Добавляет информацию о первом Initial-пакете.
+     * @param key Ключ клиента.
+     * @param info Информация о пакете.
+     */
+    void add_packet(const ClientKey &key, const PacketInfo &info);
+
+    /**
+     * @brief Проверяет, является ли пакет повторным.
+     * @param key Ключ клиента.
+     * @param scid SCID из пакета.
+     * @param dcid DCID из пакета.
+     * @param packet_number Номер пакета.
+     * @return true, если пакет повторный, false — иначе.
+     */
+    [[nodiscard]] bool is_duplicate(const ClientKey &key, const std::vector<uint8_t> &scid, const std::vector<uint8_t> &dcid, uint64_t packet_number) const;
+
+    /**
+     * @brief Удаляет информацию о соединении.
+     * @param key Ключ клиента.
+     */
+    void remove_connection(const ClientKey &key);
+
+private:
+    std::unordered_map<PacketKey, bool, PacketKeyHash, PacketKeyEqual> seen_packets_;
+};
