@@ -13,7 +13,6 @@
  * @license MIT
  */
 #pragma once
-#include "include/client_key.hpp"
 #include <vector>
 #include <cstdint>
 #include <cstring>

@@ -30,8 +30,11 @@ add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 # Поиск библиотеки fmt
 find_package(fmt CONFIG REQUIRED)
 
-# Источники
-add_executable(quic_proxy quic_udp_proxy.cpp)
+# === Источники ===
+add_executable(quic_proxy
+    quic_udp_proxy.cpp
+    src/client_key.cpp
+)
 
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
