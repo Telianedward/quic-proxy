@@ -79,7 +79,5 @@ bool Deduplicator::is_duplicate(const ClientKey &key, const std::vector<uint8_t>
 
 void Deduplicator::remove_connection(const ClientKey &key)
 {
-    // В вашем текущем коде используется `packet_map_`, но в новой версии мы используем `seen_packets_`.
-    // Если вы хотите удалить все пакеты, связанные с этим ключом, вам нужно пройтись по `seen_packets_` и удалить те, у которых `client_key == key`.
-    // Но это может быть сложно, поэтому лучше оставить `remove_connection` пустым или удалить его.
+    (void)key; // Подавление предупреждения "unused parameter"
 }
