@@ -252,7 +252,7 @@ int main()
             ssize_t n = recvfrom(udp_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&client_addr, &client_len);
 
-            if (n < 0 || n >= MAX_PACKET_SIZE)
+         if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                     std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom client failed: %s\n", __LINE__, strerror(errno));
@@ -388,7 +388,7 @@ int main()
             ssize_t n = recvfrom(wg_fd, buf, sizeof(buf), 0,
                                  (struct sockaddr *)&backend_addr, &backend_len);
 
-            if (n < 0 || n >= MAX_PACKET_SIZE)
+            if (n < 0 || static_cast<size_t>(n) >= MAX_PACKET_SIZE)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                     std::fprintf(stderr, "[ERROR] [quic_udp_proxy.cpp:%d] recvfrom backend failed: %s\n", __LINE__, strerror(errno));
