@@ -183,10 +183,10 @@ int TcpProxy::connect_to_backend() noexcept {
     return sock;
 }
 
+// src/http2/tcp_proxy.cpp
 void TcpProxy::handle_new_connection() noexcept {
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
-
     int client_fd = accept(listen_fd_, (struct sockaddr*)&client_addr, &client_len);
     if (client_fd < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -202,9 +202,29 @@ void TcpProxy::handle_new_connection() noexcept {
         return;
     }
 
-    // Подключаемся к бэкенду
+    // Создаём SSL-объект для клиента
+    SSL *ssl_client = SSL_new(ssl_ctx_);
+    if (!ssl_client) {
+        LOG_ERROR("Не удалось создать SSL-объект для клиента");
+        ::close(client_fd);
+        return;
+    }
+    SSL_set_fd(ssl_client, client_fd);
+
+    // Устанавливаем TLS-соединение с клиентом
+    int ret = SSL_accept(ssl_client);
+    if (ret <= 0) {
+        LOG_ERROR("SSL_accept вернул {}", ret);
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl_client);
+        ::close(client_fd);
+        return;
+    }
+
+    // Подключаемся к бэкенду (без TLS)
     int backend_fd = connect_to_backend();
     if (backend_fd == -1) {
+        SSL_free(ssl_client);
         ::close(client_fd);
         return;
     }
@@ -212,8 +232,7 @@ void TcpProxy::handle_new_connection() noexcept {
     // Сохраняем соединение
     connections_[client_fd] = backend_fd;
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
-
-    LOG_INFO("Новое TCP-соединение: клиент {}:{}, бэкенд {}:{}",
+    LOG_INFO("Новое TLS-соединение: клиент {}:{}, бэкенд {}:{}",
              inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port),
              backend_ip_, backend_port_);
 }
