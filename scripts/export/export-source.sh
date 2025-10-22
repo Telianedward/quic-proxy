@@ -15,13 +15,16 @@ OUTPUT_FILE="$SCRIPT_DIR/project-source.txt"
 printf "${YELLOW}🧱 Создаю файл $OUTPUT_FILE...${NC}\n"
 
 FILES=(
-    "quic_udp_proxy.cpp"
-    "quic_udp_proxy.hpp"
-    "src/client_key.cpp"
-    "src/quic_udp_deduplicator.cpp"
-    "server/logger.h"
-    "include/client_key.hpp"
-    "include/quic_udp_deduplicator.hpp"
+    "main.cpp"
+    "src/http3/quic_udp_proxy.cpp"
+    "src/http3/quic_udp_deduplicator.cpp"
+    "src/http3/client_key.cpp"
+    "src/http2/tcp_proxy.cpp"
+    "src/logger/logger.cpp"
+    "include/http3/quic_udp_proxy.hpp"
+    "include/http3/quic_udp_deduplicator.hpp"
+    "include/http3/client_key.hpp"
+    "include/http2/tcp_proxy.hpp"
     "CMakeLists.txt"
 )
 
