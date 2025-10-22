@@ -65,6 +65,8 @@ private:
     // Карта таймаутов: client_fd -> время последней активности
     std::unordered_map<int, time_t> timeouts_;
 
+    // Добавить в private-секцию класса TcpProxy
+std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-объекты, которые ждут завершения handshake
     /**
      * @brief Устанавливает неблокирующий режим сокета.
      * @param fd Дескриптор сокета.
