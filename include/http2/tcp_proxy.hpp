@@ -27,6 +27,7 @@
 #include <sys/select.h>
 #include <thread>
 #include "../logger/logger.h"
+
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.
  *
@@ -62,11 +63,7 @@ private:
 
     // Карта активных соединений: client_fd -> backend_fd
     std::unordered_map<int, int> connections_;
-    // Карта таймаутов: client_fd -> время последней активности
-    std::unordered_map<int, time_t> timeouts_;
 
-    // Добавить в private-секцию класса TcpProxy
-std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-объекты, которые ждут завершения handshake
     /**
      * @brief Устанавливает неблокирующий режим сокета.
      * @param fd Дескриптор сокета.
