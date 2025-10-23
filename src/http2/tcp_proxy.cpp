@@ -49,7 +49,7 @@ SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_2_VERSION);
         return;
     }
     auto privkey_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::PRIVEKEY_FILE);
-    if (SSL_CTX_use_PrivatePRIVEKEY_FILE(ssl_ctx_, privkey_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, privkey_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
