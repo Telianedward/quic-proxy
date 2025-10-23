@@ -41,8 +41,10 @@ public:
     /**
      * @brief Конструктор.
      * @param port Порт, на котором будет слушать сервер (по умолчанию 8587).
+     * @param backend_ip IP-адрес сервера в России.
+     * @param backend_port Порт сервера в России.
      */
-    explicit Http1Server(int port = 8587);
+    explicit Http1Server(int port = 8587, const std::string& backend_ip = "10.8.0.11", int backend_port = 8587);
 
     /**
      * @brief Запускает HTTP/1.1 сервер.
@@ -61,6 +63,8 @@ private:
     volatile sig_atomic_t running_{true}; ///< Флаг работы сервера
     std::unordered_map<int, int> connections_; ///< Карта активных соединений: client_fd -> backend_fd
     std::unordered_map<int, time_t> timeouts_; ///< Карта таймаутов: client_fd -> время последней активности
+    std::string backend_ip_; ///< IP сервера в России
+    int backend_port_;       ///< Порт сервера в России
 
     /**
      * @brief Устанавливает неблокирующий режим сокета.
