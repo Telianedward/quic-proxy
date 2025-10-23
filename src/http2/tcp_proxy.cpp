@@ -14,8 +14,12 @@
  */
 
 #include "../../include/http2/tcp_proxy.hpp"
+#include "../../include/config.h"
 #include <cstring>
 #include <algorithm>
+
+
+const AppConfig app_config{};
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
     : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {
@@ -26,19 +30,20 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
 
     // Создаем контекст для сервера
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
+
     if (!ssl_ctx_) {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         return; // Важно: выходим, если контекст не создан
     }
 
     // Загружаем сертификат и ключ
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, "server.crt", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, AppConfig::CERT_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, "server.key", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, AppConfig::KEY_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
