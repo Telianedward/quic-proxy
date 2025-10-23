@@ -25,7 +25,12 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {
     // === Инициализация OpenSSL ===
     OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr);
-
+    // В TcpProxy::TcpProxy(...) перед SSL_CTX_new()
+    if (!OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr)) {
+        LOG_ERROR("❌ Не удалось инициализировать OpenSSL");
+        ERR_print_errors_fp(stderr);
+        return;
+    }
     // Создаем контекст для сервера
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
     if (!ssl_ctx_) {
