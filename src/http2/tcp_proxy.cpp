@@ -40,16 +40,16 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     }
 SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_2_VERSION);
     // Загружаем сертификат и ключ
-    auto cert_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::CERT_FILE);
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
+    auto fullchain_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::FULLCHAIN_FILE);
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, fullchain_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат");
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    auto key_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::KEY_FILE);
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
+    auto privkey_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::PRIVEKEY_FILE);
+    if (SSL_CTX_use_PrivatePRIVEKEY_FILE(ssl_ctx_, privkey_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
@@ -403,6 +403,8 @@ void TcpProxy::handle_io_events() noexcept {
 
         // Передача данных от клиента к бэкенду
         if (FD_ISSET(client_fd, &read_fds)) {
+            // 👇 ЛОГИРУЕМ ПОЛУЧЕНИЕ ДАННЫХ ОТ КЛИЕНТА
+            LOG_INFO("📥 Получены данные от клиента {}", client_fd);
             if (!forward_data(client_fd, backend_fd)) {
                 // Соединение закрыто
                 ::close(client_fd);

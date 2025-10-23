@@ -339,5 +339,5 @@ printf "${GREEN}🎉 SSL-ключи готовы: $FULLCHAIN_TARGET + $PK8_TARGE
 
 # 🚀 === Завершение ===
 printf "${GREEN}🚀 Всё готово! Можно запускать HTTP/3 сервер.${NC}\n"
-printf "${BLUE}💡 Путь к сертификату: ${EROSJ_HTTP3_CERT}${NC}\n"
-printf "${BLUE}💡 Путь к ключу:      ${EROSJ_HTTP3_KEY}${NC}\n"
+# printf "${BLUE}💡 Путь к сертификату: ${EROSJ_HTTP3_CERT}${NC}\n"
+# printf "${BLUE}💡 Путь к ключу:      ${EROSJ_HTTP3_KEY}${NC}\n"
