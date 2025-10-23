@@ -129,10 +129,18 @@ cd /opt/quic-proxy/src
 sudo ./test_client
 
 # в РФ
+cd ../
+sudo ./install_quic_proxy.sh
 sudo systemctl stop quic-proxy.service
 cd /opt/quic-proxy
 g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/http3 -Iinclude/http2 -Iinclude/logger -o build/test_client_netherlands src/test_client_netherlands.cpp -lpthread -lssl -lcrypto -lfmt
 sudo ./build/test_client_netherlands
+
+
+etstat -tlnp | grep :8587
+tcp        0      0 10.8.0.11:8587          0.0.0.0:*               LISTEN      2600/./build/test_s
+
+root@erosj:/var/www/erosj# sudo kill -9 2600
 
 
 РФ
