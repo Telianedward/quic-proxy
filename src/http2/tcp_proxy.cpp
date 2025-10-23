@@ -28,7 +28,7 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
     if (!ssl_ctx_) {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
-        return;
+        return; // Важно: выходим, если контекст не создан
     }
 
     // Загружаем сертификат и ключ
@@ -44,7 +44,6 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         ssl_ctx_ = nullptr;
         return;
     }
-
     // Проверяем соответствие ключа и сертификата
     if (!SSL_CTX_check_private_key(ssl_ctx_)) {
         LOG_ERROR("❌ Ключ и сертификат не совпадают");
@@ -52,7 +51,6 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         ssl_ctx_ = nullptr;
         return;
     }
-
     LOG_INFO("✅ SSL-контекст успешно создан и настроен");
 }
 
@@ -299,34 +297,28 @@ void TcpProxy::handle_new_connection() noexcept {
 
     // === Установка TLS-соединения ===
     int ret = SSL_accept(ssl);
-    LOG_INFO("✅ Вызван SSL_accept(ssl={:p}, fd={})", static_cast<void*>(ssl), client_fd);
-
-    if (ret <= 0) {
-        int ssl_error = SSL_get_error(ssl, ret);
-        LOG_ERROR("❌ SSL_accept вернул {}, ошибка: {}", ret, ssl_error);
-
-        // 👇 ВЫВОДИМ ПОЛНЫЙ ДАМП ОШИБКИ OPENSSL
-        ERR_print_errors_fp(stderr); // Это уже было, но добавляем ещё один уровень
-
-        // 👇 ВЫВОДИМ СОСТОЯНИЕ SSL-ОБЪЕКТА ПОСЛЕ ОШИБКИ
-        LOG_ERROR("📌 SSL-объект после ошибки SSL_accept:");
-        LOG_ERROR("   - SSL_state: {}", SSL_state_string_long(ssl));
-        LOG_ERROR("   - SSL_version: {}", SSL_get_version(ssl));
-        LOG_ERROR("   - SSL_cipher: {}", SSL_get_cipher_name(ssl) ? SSL_get_cipher_name(ssl) : "N/A");
-        LOG_ERROR("   - SSL_session_reused: {}", SSL_session_reused(ssl) ? "true" : "false");
-        LOG_ERROR("   - SSL_get_verify_result: {}", SSL_get_verify_result(ssl));
-
-        // 👇 ВЫВОДИМ ТИП ОШИБКИ (EAGAIN, EWOULDBLOCK, и т.д.)
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            LOG_WARN("⚠️ SSL_accept вернул -1, но это ожидаемо для неблокирующего режима. Ошибка: {}", strerror(errno));
-        } else {
-            LOG_ERROR("❌ SSL_accept вернул -1 из-за критической ошибки: {}", strerror(errno));
-        }
-
-        SSL_free(ssl);
-        ::close(client_fd);
-        return;
+LOG_INFO("✅ Вызван SSL_accept(ssl={:p}, fd={})", static_cast<void*>(ssl), client_fd);
+if (ret <= 0) {
+    int ssl_error = SSL_get_error(ssl, ret);
+    switch (ssl_error) {
+        case SSL_ERROR_WANT_READ:
+            LOG_DEBUG("⚠️ SSL_accept: требуется чтение данных. Ожидаем...");
+            // Сохраняем SSL-объект для дальнейшей обработки
+            pending_ssl_accepts_[client_fd] = ssl;
+            return; // Не закрываем соединение, ждём следующего события
+        case SSL_ERROR_WANT_WRITE:
+            LOG_DEBUG("⚠️ SSL_accept: требуется запись данных. Ожидаем...");
+            // Сохраняем SSL-объект для дальнейшей обработки
+            pending_ssl_accepts_[client_fd] = ssl;
+            return; // Не закрываем соединение, ждём следующего события
+        default:
+            LOG_ERROR("❌ SSL_accept вернул {}, ошибка: {}", ret, ssl_error);
+            ERR_print_errors_fp(stderr);
+            SSL_free(ssl);
+            ::close(client_fd);
+            return;
     }
+}
 
     // 👇 ЛОГИРУЕМ УСПЕШНОЕ СОЕДИНЕНИЕ
     LOG_SUCCESS("✅ SSL_accept успешно завершён для клиента {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
