@@ -132,7 +132,7 @@ sudo ./test_client
 sudo systemctl stop quic-proxy.service
 cd /opt/quic-proxy
 g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/http3 -Iinclude/http2 -Iinclude/logger -o build/test_client src/test_client.cpp -lpthread -lssl -lcrypto -lfmt
-sudo ./test_client
+sudo ./build/test_client
 
 
 РФ
