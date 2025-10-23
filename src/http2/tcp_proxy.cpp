@@ -365,43 +365,14 @@ void TcpProxy::handle_io_events() noexcept {
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
         FD_SET(client_fd, &read_fds);
-        FD_SET(backend_fd, &read_fds);
-        int max_fd = std::max(client_fd, backend_fd);
+        int max_fd = client_fd;
         timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0) {
             continue;
         }
 
-        // Проверка, есть ли SSL-объект в pending_ssl_accepts_
-        auto pending_it = pending_ssl_accepts_.find(client_fd);
-        if (pending_it != pending_ssl_accepts_.end()) {
-            SSL *ssl_client = pending_it->second;
-            int ret = SSL_accept(ssl_client);
-            if (ret <= 0) {
-                int ssl_error = SSL_get_error(ssl_client, ret);
-                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                    // Продолжаем ждать
-                    continue;
-                } else {
-                    LOG_ERROR("SSL_accept вернул {}, ошибка: {}", ret, ssl_error);
-                    ERR_print_errors_fp(stderr);
-                    SSL_free(ssl_client);
-                    pending_ssl_accepts_.erase(pending_it);
-                    ::close(client_fd);
-                    ::close(backend_fd);
-                    connections_.erase(client_fd);
-                    timeouts_.erase(client_fd);
-                    LOG_INFO("TCP-соединение закрыто по ошибке handshake: клиент {}, бэкенд {}", client_fd, backend_fd);
-                    continue;
-                }
-            }
-            // Handshake успешен
-            pending_ssl_accepts_.erase(pending_it);
-            LOG_INFO("TLS-handshake завершён для клиента {}", client_fd);
-        }
-
-        // Передача данных от клиента к бэкенду
+        // Передача данных от клиента к серверу
         if (FD_ISSET(client_fd, &read_fds)) {
             // 👇 ЛОГИРУЕМ ПОЛУЧЕНИЕ ДАННЫХ ОТ КЛИЕНТА
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
@@ -417,23 +388,8 @@ void TcpProxy::handle_io_events() noexcept {
                 timeouts_[client_fd] = time(nullptr);
             }
         }
-        // Передача данных от бэкенда к клиенту
-        if (FD_ISSET(backend_fd, &read_fds)) {
-            if (!forward_data(backend_fd, client_fd)) {
-                // Соединение закрыто
-                ::close(client_fd);
-                ::close(backend_fd);
-                connections_.erase(client_fd);
-                timeouts_.erase(client_fd);
-                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-            } else {
-                // Обновляем таймаут
-                timeouts_[client_fd] = time(nullptr);
-            }
-        }
     }
 }
-
 bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
