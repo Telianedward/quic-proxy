@@ -37,13 +37,13 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     }
 
     // Загружаем сертификат и ключ
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, AppConfig::CERT_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, std::string(AppConfig::SSL_DIR) + "/" +  AppConfig::CERT_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, AppConfig::KEY_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, std::string(AppConfig::SSL_DIR) + "/" +  AppConfig::KEY_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
