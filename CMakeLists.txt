@@ -32,9 +32,11 @@ find_package(fmt CONFIG REQUIRED)
 
 # === Источники ===
 add_executable(quic_proxy
-    quic_udp_proxy.cpp
-    src/client_key.cpp
-    src/quic_udp_deduplicator.cpp
+    main.cpp
+    src/http2/tcp_proxy.cpp
+    src/http3/quic_udp_proxy.cpp
+    src/http3/client_key.cpp
+    src/http3/quic_udp_deduplicator.cpp
 )
 
 # Линковка: pthread и fmt
