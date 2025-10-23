@@ -124,3 +124,11 @@ cat >  install_quic_proxy.sh
 chmod +x install_quic_proxy.sh
 # Запустите скрипт с правами root:
 sudo ./install_quic_proxy.sh
+
+cd /opt/quic-proxy
+sudo ./test_client
+
+# в РФ
+
+cd /var/www/erosj/build
+sudo ./test_server
