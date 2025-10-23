@@ -37,6 +37,7 @@ add_executable(quic_proxy
     src/http3/quic_udp_proxy.cpp
     src/http3/client_key.cpp
     src/http3/quic_udp_deduplicator.cpp
+    src/http1/server.cpp  # 👈 ДОБАВЛЕНО: файл HTTP/1.1 сервера
 )
 
 # Поиск и использование OpenSSL
