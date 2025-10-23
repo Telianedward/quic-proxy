@@ -42,12 +42,12 @@ int main() {
         const std::string backend_ip = "10.8.0.11"; // IP сервера в России через WireGuard
         const int backend_http3_port = 8585; // Порт H3-сервера в РФ
         const int backend_http2_port = 8586;
-        // const int backend_http1_port = 8587; // Порт HTTP/1.1 сервера в РФ — ❌ УДАЛЕН, так как не используется
+        const int backend_http1_port = 8587; // 👈 Порт HTTP/1.1 сервера в РФ (внутренний)
 
         // 🚀 Создание и запуск серверов
         QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_http3_port);
         TcpProxy tcp_proxy(http2_port, backend_ip, backend_http2_port);
-        Http1Server http1_server(http1_port); // 👈 Создаем HTTP/1.1 сервер
+      Http1Server http1_server(http1_port, backend_ip, backend_http1_port); // 👈 Передаём backend_ip и backend_http1_port
 
         // Запуск QUIC-UDP прокси
         std::thread quic_thread([http3_port, &quic_proxy]() {
@@ -67,7 +67,7 @@ int main() {
             }
         });
 
-        // Запуск HTTP/1.1 сервера
+          // Запуск HTTP/1.1 сервера
         std::thread http1_thread([http1_port, &http1_server]() {
             LOG_INFO("🚀 HTTP/1.1 сервер запущен на порту {}", http1_port);
             if (!http1_server.run()) {
