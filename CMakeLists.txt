@@ -32,38 +32,13 @@ find_package(fmt CONFIG REQUIRED)
 
 # === Источники ===
 add_executable(quic_proxy
-    main.cpp
-    src/http2/tcp_proxy.cpp
-    src/http3/quic_udp_proxy.cpp
-    src/http3/client_key.cpp
-    src/http3/quic_udp_deduplicator.cpp
+    quic_udp_proxy.cpp
+    src/client_key.cpp
+    src/quic_udp_deduplicator.cpp
 )
-
-# Поиск и использование OpenSSL
-find_package(OpenSSL REQUIRED)
 
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
     pthread
     fmt::fmt
-    OpenSSL::SSL
-    OpenSSL::Crypto
-)
-
-# === ТЕСТОВЫЙ КЛИЕНТ ===
-add_executable(test_client src/test_client.cpp)
-
-# Подключаем заголовки и линкуем библиотеки
-target_include_directories(test_client PRIVATE
-    include
-    include/http3
-    include/http2
-    include/logger
-)
-
-target_link_libraries(test_client PRIVATE
-    pthread
-    fmt::fmt
-    OpenSSL::SSL
-    OpenSSL::Crypto
 )
