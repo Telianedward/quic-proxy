@@ -36,6 +36,13 @@ fi
 echo "Устанавливаем бинарник и сервис..."
 sudo make install
 
+sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.cer /opt/quic-proxy/server.crt
+sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.key /opt/quic-proxy/server.key
+
+
+sudo chown root:root /opt/quic-proxy/server.*
+sudo chmod 600 /opt/quic-proxy/server.key  # Ключ должен быть защищён
+sudo chmod 644 /opt/quic-proxy/server.crt  # Сертификат можно читать всем
 # # 6. Перезагружаем systemd
 # echo "Перезагружаем systemd..."
 # systemctl daemon-reload
