@@ -35,15 +35,16 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         return; // Важно: выходим, если контекст не создан
     }
-
+    auto cert_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::CERT_FILE);
     // Загружаем сертификат и ключ
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, std::string(AppConfig::SSL_DIR) + "/" +  AppConfig::CERT_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, std::string(AppConfig::SSL_DIR) + "/" +  AppConfig::KEY_FILE.data(), SSL_FILETYPE_PEM) <= 0) {
+        auto key_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::KEY_FILE);
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
