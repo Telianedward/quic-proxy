@@ -264,4 +264,32 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     }
 }
 
-std::string Http1
+std::string Http1Server::generate_index_html() const {
+    return R"(<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ErosJ</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <h1>Привет из России!</h1>
+    <p>Это HTTP/1.1 сервер на порту 8587.</p>
+    <script src="/js/main.js"></script>
+</body>
+</html>)";
+}
+
+std::string Http1Server::generate_favicon() const {
+    // Здесь должен быть бинарный контент favicon.ico
+    // Для примера используем пустую строку
+    return "";
+}
+
+std::string Http1Server::generate_main_css() const {
+    return "body { background: #eee; font-family: Arial, sans-serif; }";
+}
+
+std::string Http1Server::generate_main_js() const {
+    return "console.log('Hello from Russia!');";
+}
