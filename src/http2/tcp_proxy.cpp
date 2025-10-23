@@ -38,7 +38,7 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         ERR_print_errors_fp(stderr); // 👈 Выводим ошибки OpenSSL
         return;
     }
-
+SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_2_VERSION);
     // Загружаем сертификат и ключ
     auto cert_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::CERT_FILE);
     if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {

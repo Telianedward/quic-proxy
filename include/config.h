@@ -38,10 +38,10 @@ struct AppConfig {
     static constexpr std::string_view DOMAIN = "erosj.com"; // ✅ ИСПРАВЛЕНО: должно быть доменом, а не "erosj-http3"
 
     // === Пути к сертификатам (внутри SSL_DIR) ===
-    static constexpr std::string_view CERT_FILE  = "cert.pem";
+    static constexpr std::string_view CERT_FILE  = "fullchain.pem";
     static constexpr std::string_view FULLCHAIN_FILE  = "fullchain.pem";
     static constexpr std::string_view PRIVEKEY_FILE = "privkey.pk8";
-    static constexpr std::string_view KEY_FILE = "server.key";
+    static constexpr std::string_view KEY_FILE ="privkey.pk8";
 
     // === База данных (резерв) ===
     static constexpr std::string_view POSTGRESQL_HOST = "192.168.1.250";

@@ -8,6 +8,11 @@ BLUE='\e[34m'
 CYAN='\e[36m'
 NC='\e[0m' #  # No Color
 
+NAME="erosj"
+DOMAIN="${NAME}.com"
+PROJECT_DIR="/var/www/${NAME}"
+# Путь к каталогу
+QUIC_PROXY_DIR="/opt/quic-proxy"
 
 printf "${CYAN}✅  🇷🇺 ⚠️ 💀 Запуск файла scripts/build.sh 💀 ⚠️ 🇷🇺 ✅ ${NC}\n"
 # Убедитесь, что скрипт запущен с правами root (или через sudo)
@@ -16,8 +21,7 @@ printf "${RED}  ❌ 💀 Пожалуйста, запустите этот ск�
     exit 1
 fi
 
-# Путь к каталогу
-QUIC_PROXY_DIR="/opt/quic-proxy"
+
 
 printf "${GREEN}✅  Начинаем установку и запуск quic-proxy... ${NC}\n"
 
@@ -48,13 +52,30 @@ fi
 printf "${GREEN}✅  Устанавливаем бинарник и сервис... ${NC}\n"
 sudo make install
 
-sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.cer /opt/quic-proxy/server.crt
-sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.key /opt/quic-proxy/server.key
+
+# 🔐 Проверка и подготовка SSL-ключей для HTTP/3
+SSL_CHECK_SCRIPT="${QUIC_PROXY_DIR}/scripts/cli/build/check_ssl.sh"
+
+if [ -f "$SSL_CHECK_SCRIPT" ]; then
+    chmod +x "$SSL_CHECK_SCRIPT"
+    printf "${YELLOW}🔐 Проверка и подготовка SSL-ключей для HTTP/3...${NC}\n"
+    "$SSL_CHECK_SCRIPT" "$@"
+    if [ $? -ne 0 ]; then
+        printf "${RED}❌ Ошибка при выполнении $SSL_CHECK_SCRIPT${NC}\n"
+        exit 1
+    fi
+else
+    printf "${RED}❌ Скрипт $SSL_CHECK_SCRIPT не найден. Не удалось проверить SSL-ключи.${NC}\n"
+    exit 1
+fi
+
+# sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.cer /opt/quic-proxy/server.crt
+# sudo cp /root/.acme.sh/erosj.com_ecc/erosj.com.key /opt/quic-proxy/server.key
 
 
-sudo chown root:root /opt/quic-proxy/server.*
-sudo chmod 600 /opt/quic-proxy/server.key  # Ключ должен быть защищён
-sudo chmod 644 /opt/quic-proxy/server.crt  # Сертификат можно читать всем
+# sudo chown root:root /opt/quic-proxy/server.*
+# sudo chmod 600 /opt/quic-proxy/server.key  # Ключ должен быть защищён
+# sudo chmod 644 /opt/quic-proxy/server.crt  # Сертификат можно читать всем
 # # 6. Перезагружаем systemd
 # echo "Перезагружаем systemd..."
 # systemctl daemon-reload
