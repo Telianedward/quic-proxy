@@ -39,8 +39,13 @@ add_executable(quic_proxy
     src/http3/quic_udp_deduplicator.cpp
 )
 
+# Поиск и использование OpenSSL
+find_package(OpenSSL REQUIRED)
+
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
     pthread
     fmt::fmt
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )

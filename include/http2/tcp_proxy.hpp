@@ -27,6 +27,8 @@
 #include <sys/select.h>
 #include <thread>
 #include "../logger/logger.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.
  *
