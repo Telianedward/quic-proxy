@@ -18,7 +18,47 @@
 #include <algorithm>
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port) {}
+    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {}
+
+    // === Инициализация OpenSSL ===
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+
+    // Создаем контекст для сервера
+    ssl_ctx_ = SSL_CTX_new(TLS_server_method());
+    if (!ssl_ctx_) {
+        LOG_ERROR("❌ Не удалось создать SSL-контекст");
+        return;
+    }
+
+    // Загружаем сертификат и ключ
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, "server.crt", SSL_FILETYPE_PEM) <= 0) {
+        LOG_ERROR("❌ Не удалось загрузить сертификат");
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
+        return;
+    }
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, "server.key", SSL_FILETYPE_PEM) <= 0) {
+        LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
+        return;
+    }
+
+    // Проверяем соответствие ключа и сертификата
+    if (!SSL_CTX_check_private_key(ssl_ctx_)) {
+        LOG_ERROR("❌ Ключ и сертификат не совпадают");
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
+        return;
+    }
+
+    LOG_INFO("✅ SSL-контекст успешно создан и настроен");
+
+
+
+
 
 bool TcpProxy::run() {
     // Создаем сокет для прослушивания
@@ -202,13 +242,15 @@ void TcpProxy::handle_new_connection() noexcept {
         return;
     }
 
-    // === Создание SSL-объекта ===
+       // === Создание SSL-объекта ===
     SSL *ssl = SSL_new(ssl_ctx_);
     if (!ssl) {
         LOG_ERROR("❌ Не удалось создать SSL-объект. ssl_ctx_ = {:p}", static_cast<void*>(ssl_ctx_));
         ::close(client_fd);
         return;
     }
+    // Сохраняем SSL-объект для дальнейшего завершения handshake
+    pending_ssl_accepts_[client_fd] = ssl;
 
     // 👇 ЛОГИРУЕМ АДРЕС КЛИЕНТА И ПОРТ
     std::string client_ip_str = inet_ntoa(client_addr.sin_addr);
@@ -237,15 +279,11 @@ void TcpProxy::handle_new_connection() noexcept {
     long ssl_options = SSL_CTX_get_options(ssl_ctx_);
     LOG_DEBUG("✅ SSL-опции контекста: 0x{:X}", ssl_options);
 
-    // 👇 ЛОГИРУЕМ ALPN (если есть)
-    unsigned char *alpn_list = nullptr;
-    unsigned int alpn_len = 0;
-    if (SSL_CTX_get_alpn_select_cb(ssl_ctx_, nullptr, nullptr)) {
-        // Если установлен ALPN-колбэк
-        LOG_WARN("⚠️ ALPN-колбэк установлен, но не выводим список протоколов");
-    } else {
-        LOG_DEBUG("✅ ALPN не установлен (или не поддерживается)");
-    }
+ // 👇 ЛОГИРУЕМ ALPN (если есть)
+    // В OpenSSL нет функции SSL_CTX_get_alpn_select_cb.
+    // Для получения списка протоколов можно использовать SSL_get0_alpn_selected,
+    // но только после завершения handshake.
+    LOG_DEBUG("✅ ALPN не настроен (можно добавить позже через SSL_CTX_set_alpn_select_cb)");
 
     // 👇 Устанавливаем файловый дескриптор
     SSL_set_fd(ssl, client_fd);
@@ -257,6 +295,8 @@ void TcpProxy::handle_new_connection() noexcept {
     LOG_DEBUG("   - SSL_version: {}", SSL_get_version(ssl));
     LOG_DEBUG("   - SSL_cipher: {}", SSL_get_cipher_name(ssl) ? SSL_get_cipher_name(ssl) : "N/A");
     LOG_DEBUG("   - SSL_session_reused: {}", SSL_session_reused(ssl) ? "true" : "false");
+
+     pending_ssl_accepts_[client_fd] = ssl;
 
     // === Установка TLS-соединения ===
     int ret = SSL_accept(ssl);

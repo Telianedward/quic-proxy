@@ -69,7 +69,11 @@ private:
 
     // Добавить в private-секцию класса TcpProxy
 std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-объекты, которые ждут завершения handshake
-    /**
+
+  // SSL-контекст для TLS-соединений
+    SSL_CTX* ssl_ctx_;
+
+/**
      * @brief Устанавливает неблокирующий режим сокета.
      * @param fd Дескриптор сокета.
      * @return true при успехе, false при ошибке.
