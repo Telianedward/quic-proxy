@@ -60,6 +60,7 @@ private:
     int port_;               ///< Порт, на котором слушает сервер
     volatile sig_atomic_t running_{true}; ///< Флаг работы сервера
     std::unordered_map<int, int> connections_; ///< Карта активных соединений: client_fd -> backend_fd
+    std::unordered_map<int, time_t> timeouts_; ///< Карта таймаутов: client_fd -> время последней активности
 
     /**
      * @brief Устанавливает неблокирующий режим сокета.
