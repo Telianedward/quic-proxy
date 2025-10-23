@@ -133,3 +133,13 @@ sudo ./test_client
 cd /var/www/erosj/build
 sudo ./test_server
 g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/server -Iinclude/server/dist -o build/test_server test_server.cpp -lpthread -lssl -lcrypto -lfmt
+
+РФ
+cd /var/www/erosj
+g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/server -Iinclude/server/dist -o build/test_server test_server.cpp -lpthread -lssl -lcrypto -lfmt
+sudo ./build/test_server
+
+нидерланды
+cd /opt/quic-proxy
+
+./install_quic_proxy.sh
