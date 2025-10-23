@@ -18,8 +18,7 @@
 #include <algorithm>
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {}
-
+    : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {
     // === Инициализация OpenSSL ===
     SSL_library_init();
     OpenSSL_add_all_algorithms();
@@ -55,7 +54,7 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     }
 
     LOG_INFO("✅ SSL-контекст успешно создан и настроен");
-
+}
 
 
 
