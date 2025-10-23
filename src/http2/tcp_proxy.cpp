@@ -24,28 +24,29 @@ const AppConfig app_config{};
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
     : listen_fd_(-1), backend_port_(backend_port), backend_ip_(backend_ip), listen_port_(listen_port), ssl_ctx_(nullptr) {
     // === Инициализация OpenSSL ===
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
+    OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr);
 
     // Создаем контекст для сервера
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
-
     if (!ssl_ctx_) {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
-        return; // Важно: выходим, если контекст не создан
+        ERR_print_errors_fp(stderr); // 👈 Выводим ошибки OpenSSL
+        return;
     }
-    auto cert_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::CERT_FILE);
+
     // Загружаем сертификат и ключ
+    auto cert_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::CERT_FILE);
     if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат");
+        ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-        auto key_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::KEY_FILE);
+    auto key_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::KEY_FILE);
     if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить закрытый ключ");
+        ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
@@ -53,6 +54,7 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
     // Проверяем соответствие ключа и сертификата
     if (!SSL_CTX_check_private_key(ssl_ctx_)) {
         LOG_ERROR("❌ Ключ и сертификат не совпадают");
+        ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
