@@ -125,16 +125,18 @@ chmod +x install_quic_proxy.sh
 # Запустите скрипт с правами root:
 sudo ./install_quic_proxy.sh
 
-cd /opt/quic-proxy
+cd /opt/quic-proxy/src
 sudo ./test_client
 
 # в РФ
+sudo systemctl stop quic-proxy.service
+cd /opt/quic-proxy
+g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/http3 -Iinclude/http2 -Iinclude/logger -o build/test_client src/test_client.cpp -lpthread -lssl -lcrypto -lfmt
+sudo ./test_client
 
-cd /var/www/erosj/build
-sudo ./test_server
-g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/server -Iinclude/server/dist -o build/test_server test_server.cpp -lpthread -lssl -lcrypto -lfmt
 
 РФ
+er stop
 cd /var/www/erosj
 g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/server -Iinclude/server/dist -o build/test_server test_server.cpp -lpthread -lssl -lcrypto -lfmt
 sudo ./build/test_server
