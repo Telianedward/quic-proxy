@@ -43,4 +43,6 @@ add_executable(quic_proxy
 target_link_libraries(quic_proxy PRIVATE
     pthread
     fmt::fmt
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
