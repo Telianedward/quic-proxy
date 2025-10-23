@@ -49,3 +49,21 @@ target_link_libraries(quic_proxy PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
 )
+
+# === ТЕСТОВЫЙ КЛИЕНТ ===
+add_executable(test_client src/test_client.cpp)
+
+# Подключаем заголовки и линкуем библиотеки
+target_include_directories(test_client PRIVATE
+    include
+    include/http3
+    include/http2
+    include/logger
+)
+
+target_link_libraries(test_client PRIVATE
+    pthread
+    fmt::fmt
+    OpenSSL::SSL
+    OpenSSL::Crypto
+)
