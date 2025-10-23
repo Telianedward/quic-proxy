@@ -390,6 +390,7 @@ void TcpProxy::handle_io_events() noexcept {
         }
     }
 }
+
 bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
