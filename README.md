@@ -132,3 +132,4 @@ sudo ./test_client
 
 cd /var/www/erosj/build
 sudo ./test_server
+g++ -std=c++23 -O2 -Wall -Wextra -Iinclude -Iinclude/server -Iinclude/server/dist -o build/test_server test_server.cpp -lpthread -lssl -lcrypto -lfmt
