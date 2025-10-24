@@ -192,33 +192,30 @@ void Http1Server::handle_new_connection() noexcept {
 
 // Замените метод handle_io_events()
 void Http1Server::handle_io_events() noexcept {
-    // Создаем вектор для pollfd
-    std::vector<pollfd> fds;
-    // Добавляем все активные соединения
-    for (const auto& [client_fd, backend_fd] : connections_) {
-        // Добавляем клиентский сокет
-        fds.push_back({.fd = client_fd, .events = POLLIN, .revents = 0});
-        // Добавляем бэкенд-сокет
-        fds.push_back({.fd = backend_fd, .events = POLLIN, .revents = 0});
-    }
-
-    // Вызываем poll
-    int activity = poll(fds.data(), static_cast<nfds_t>(fds.size()), 10); // 10 мс таймаут
-
-    if (activity < 0) {
-        if (errno != EINTR) {
-            LOG_ERROR("Ошибка poll: {}", strerror(errno));
+    auto connections_copy = connections_;
+    for (const auto& [client_fd, backend_fd] : connections_copy) {
+        if (backend_fd == -1) { // 👈 Защита от некорректных дескрипторов
+            LOG_WARN("Некорректный backend_fd (-1) для client_fd={}. Закрываем соединение.", client_fd);
+            ::close(client_fd);
+            connections_.erase(client_fd);
+            timeouts_.erase(client_fd);
+            continue;
         }
-        return;
-    }
 
-    // Обработка событий
-    size_t i = 0;
-    for (const auto& [client_fd, backend_fd] : connections_) {
-        if (i >= fds.size()) break;
+        fd_set read_fds, write_fds;
+        FD_ZERO(&read_fds);
+        FD_ZERO(&write_fds);
+        FD_SET(client_fd, &read_fds);
+        FD_SET(backend_fd, &read_fds);
+        int max_fd = std::max(client_fd, backend_fd);
+        timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
+        int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
+        if (activity <= 0) {
+            continue;
+        }
 
-        // Проверяем клиентский сокет
-        if (fds[i].revents & (POLLIN | POLLERR | POLLHUP)) {
+        // Передача данных от клиента к серверу
+        if (FD_ISSET(client_fd, &read_fds)) {
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
             if (!forward_data(client_fd, backend_fd)) {
                 ::close(client_fd);
@@ -230,11 +227,9 @@ void Http1Server::handle_io_events() noexcept {
                 timeouts_[client_fd] = time(nullptr);
             }
         }
-        ++i;
 
-        // Проверяем бэкенд-сокет
-        if (i >= fds.size()) break;
-        if (fds[i].revents & (POLLIN | POLLERR | POLLHUP)) {
+        // Передача данных от сервера к клиенту
+        if (FD_ISSET(backend_fd, &read_fds)) {
             LOG_INFO("📤 Получены данные от сервера {}", backend_fd);
             if (!forward_data(backend_fd, client_fd)) {
                 ::close(client_fd);
@@ -246,10 +241,8 @@ void Http1Server::handle_io_events() noexcept {
                 timeouts_[client_fd] = time(nullptr);
             }
         }
-        ++i;
     }
 }
-
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
