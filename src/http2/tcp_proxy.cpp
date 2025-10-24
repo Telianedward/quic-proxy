@@ -347,6 +347,11 @@ bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
     if (bytes_read > 0) {
+        // 👇 ЛОГИРУЕМ ПОЛУЧЕННЫЕ ДАННЫЕ ОТ КЛИЕНТА
+        LOG_INFO("📥 Получено {} байт от клиента {}", bytes_read, from_fd);
+        std::string request_str(buffer, bytes_read);
+        LOG_DEBUG("Запрос: {}", request_str);
+
         // Отправляем данные на другой сокет
         ssize_t total_sent = 0;
         while (total_sent < bytes_read) {
@@ -364,7 +369,10 @@ bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
             total_sent += bytes_sent;
         }
 
-        LOG_DEBUG("Передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+        // 👇 ЛОГИРУЕМ ОТПРАВЛЕННЫЕ ДАННЫЕ НА БЭКЕНД
+        LOG_INFO("📤 Отправлено {} байт на бэкенд {}", total_sent, to_fd);
+        LOG_DEBUG("Отправлено: {}", request_str);
+
         return true;
     } else if (bytes_read == 0) {
         // Клиент или сервер закрыл соединение
