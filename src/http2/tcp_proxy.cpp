@@ -14,6 +14,7 @@
  */
 
 #include "../../include/http2/tcp_proxy.hpp"
+#include "../../include/http1/server.hpp"
 #include "../../include/config.h"
 #include <cstring>
 #include <algorithm>
