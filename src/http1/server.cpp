@@ -219,7 +219,6 @@ int Http1Server::connect_to_backend() noexcept {
 
     return backend_fd;
 }
-
 void Http1Server::handle_new_connection() noexcept {
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
