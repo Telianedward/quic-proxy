@@ -305,7 +305,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
                     LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
                     return true;
                 } else {
-                    LOG_CRITICAL("💥 Критическая ошибка отправки данных: {}", strerror(errno));
+                    LOG_WARN"💥 Критическая ошибка отправки данных: {}", strerror(errno));
                     return false;
                 }
             }
