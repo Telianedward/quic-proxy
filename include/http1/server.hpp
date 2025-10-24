@@ -113,27 +113,7 @@ std::unordered_map<int, PendingSend> pending_sends_;
      */
     [[nodiscard]] bool forward_data(int from_fd, int to_fd) noexcept;
 
-    /**
-     * @brief Генерирует HTML-ответ для корневого пути.
-     * @return Строка с HTML-контентом.
-     */
-    [[nodiscard]] std::string generate_index_html() const;
 
-    /**
-     * @brief Генерирует ответ для favicon.ico.
-     * @return Строка с бинарными данными favicon.
-     */
-    [[nodiscard]] std::string generate_favicon() const;
 
-    /**
-     * @brief Генерирует ответ для main.css.
-     * @return Строка с CSS-контентом.
-     */
-    [[nodiscard]] std::string generate_main_css() const;
 
-    /**
-     * @brief Генерирует ответ для main.js.
-     * @return Строка с JS-контентом.
-     */
-    [[nodiscard]] std::string generate_main_js() const;
 };
