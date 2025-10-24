@@ -391,35 +391,96 @@ void TcpProxy::handle_io_events() noexcept {
     }
 }
 
-bool TcpProxy::forward_data(int from_fd, int to_fd) noexcept {
+/**
+ * @brief Передает данные между клиентом и сервером в двух направлениях.
+ * @param client_fd Дескриптор сокета клиента.
+ * @param backend_fd Дескриптор сокета сервера в России.
+ * @return true, если соединение активно, false — если нужно закрыть.
+ */
+[[nodiscard]] bool Http1Server::forward_data(int client_fd, int backend_fd) noexcept {
+    // Буфер для чтения данных
     char buffer[8192];
-    ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
 
+    // === НАПРАВЛЕНИЕ: КЛИЕНТ → СЕРВЕР ===
+    ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
     if (bytes_read > 0) {
+        LOG_INFO("📥 Получены {} байт от клиента {}", bytes_read, client_fd);
+
+        // Отправляем данные на сервер в России
         ssize_t total_sent = 0;
         while (total_sent < bytes_read) {
-            ssize_t bytes_sent = send(to_fd, buffer + total_sent, bytes_read - total_sent, 0);
+            ssize_t bytes_sent = send(backend_fd, buffer + total_sent, bytes_read - total_sent, 0);
             if (bytes_sent < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     // Буфер отправки заполнен — попробуем позже
-                    LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
+                    LOG_DEBUG("Буфер отправки на сервер заполнен, попробуем позже");
                     return true; // Соединение активно, продолжаем
                 } else {
-                    LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
-                    return false;
+                    LOG_ERROR("Ошибка отправки данных на сервер: {}", strerror(errno));
+                    return false; // Ошибка, закрываем соединение
                 }
             }
             total_sent += bytes_sent;
         }
-        LOG_DEBUG("Передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
-        return true;
+        LOG_DEBUG("✅ Передано {} байт на сервер {}", total_sent, backend_fd);
+
+        // После отправки данных от клиента, начинаем читать ответ от сервера
+        // Устанавливаем таймаут для ожидания ответа (например, 5 секунд)
+        timeval timeout{.tv_sec = 5, .tv_usec = 0};
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(backend_fd, &read_fds);
+
+        int activity = select(backend_fd + 1, &read_fds, nullptr, nullptr, &timeout);
+        if (activity <= 0) {
+            LOG_WARN("⏳ Таймаут ожидания ответа от сервера ({} сек)", timeout.tv_sec);
+            return true; // Не закрываем соединение, ждём дальше
+        }
+
+        // === НАПРАВЛЕНИЕ: СЕРВЕР → КЛИЕНТ ===
+        bytes_read = recv(backend_fd, buffer, sizeof(buffer), 0);
+        if (bytes_read > 0) {
+            LOG_INFO("📤 Получены {} байт от сервера {}", bytes_read, backend_fd);
+
+            // Отправляем ответ клиенту
+            total_sent = 0;
+            while (total_sent < bytes_read) {
+                ssize_t bytes_sent = send(client_fd, buffer + total_sent, bytes_read - total_sent, 0);
+                if (bytes_sent < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        // Буфер отправки заполнен — попробуем позже
+                        LOG_DEBUG("Буфер отправки клиенту заполнен, попробуем позже");
+                        return true; // Соединение активно, продолжаем
+                    } else {
+                        LOG_ERROR("Ошибка отправки данных клиенту: {}", strerror(errno));
+                        return false; // Ошибка, закрываем соединение
+                    }
+                }
+                total_sent += bytes_sent;
+            }
+            LOG_DEBUG("✅ Передано {} байт клиенту {}", total_sent, client_fd);
+            return true; // Соединение активно, продолжаем
+        } else if (bytes_read == 0) {
+            // Сервер закрыл соединение
+            LOG_INFO("🛑 Сервер {} закрыл соединение", backend_fd);
+            return false; // Закрываем соединение
+        } else {
+            // Ошибка при чтении от сервера
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                LOG_ERROR("Ошибка чтения данных от сервера: {}", strerror(errno));
+                return false; // Ошибка, закрываем соединение
+            }
+            return true; // Нет данных, продолжаем
+        }
     } else if (bytes_read == 0) {
-        // Клиент или бэкенд закрыл соединение
-        return false;
+        // Клиент закрыл соединение
+        LOG_INFO("🛑 Клиент {} закрыл соединение", client_fd);
+        return false; // Закрываем соединение
     } else {
+        // Ошибка при чтении от клиента
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            LOG_ERROR("Ошибка чтения данных: {}", strerror(errno));
-            return false;
+            LOG_ERROR("Ошибка чтения данных от клиента: {}", strerror(errno));
+            return false; // Ошибка, закрываем соединение
         }
         return true; // Нет данных, продолжаем
     }

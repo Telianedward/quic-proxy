@@ -18,6 +18,7 @@
 
 #include "include/http3/quic_udp_proxy.hpp"
 #include "include/http2/tcp_proxy.hpp"
+#include "include/http1/server.hpp"
 #include "include/logger/logger.h"
 #include <thread>
 #include <iostream>
@@ -40,15 +41,19 @@ int main() {
         // Настройки
         const int http3_port = 443;
         const int http2_port = 443; // TCP-прокси слушает тот же порт
+        const int http1_port = 443; // 👈 ИСПРАВЛЕНО: HTTP/1.1 сервер слушает 443 для клиентов
         const std::string backend_ip = "10.8.0.11"; // IP сервера в России через WireGuard
         const int backend_http3_port = 8585; // Порт H3-сервера в РФ
         const int backend_http2_port = 8586;
+        const int backend_http1_port = 8587; // 👈 Порт HTTP/1.1 сервера в РФ (внутренний)
+
         // 🚀 Создание и запуск серверов
         QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_http3_port);
         TcpProxy tcp_proxy(http2_port, backend_ip, backend_http2_port);
+      Http1Server http1_server(http1_port, backend_ip, backend_http1_port); // 👈 Передаём backend_ip и backend_http1_port
 
         // Запуск QUIC-UDP прокси
-        std::thread quic_thread([http3_port, &quic_proxy]() { // Захватываем http3_port и quic_proxy
+        std::thread quic_thread([http3_port, &quic_proxy]() {
             LOG_INFO("🚀 QUIC-UDP прокси запущен на порту {}", http3_port);
             if (!quic_proxy.run()) {
                 LOG_ERROR("❌ QUIC-UDP прокси завершился с ошибкой");
@@ -57,10 +62,19 @@ int main() {
         });
 
         // Запуск TCP-прокси
-        std::thread tcp_thread([http2_port, &tcp_proxy]() { // Захватываем http2_port и tcp_proxy
+        std::thread tcp_thread([http2_port, &tcp_proxy]() {
             LOG_INFO("🚀 TCP-прокси запущен на порту {}", http2_port);
             if (!tcp_proxy.run()) {
                 LOG_ERROR("❌ TCP-прокси завершился с ошибкой");
+                std::exit(EXIT_FAILURE);
+            }
+        });
+
+          // Запуск HTTP/1.1 сервера
+        std::thread http1_thread([http1_port, &http1_server]() {
+            LOG_INFO("🚀 HTTP/1.1 сервер запущен на порту {}", http1_port);
+            if (!http1_server.run()) {
+                LOG_ERROR("❌ HTTP/1.1 сервер завершился с ошибкой");
                 std::exit(EXIT_FAILURE);
             }
         });
@@ -72,6 +86,7 @@ int main() {
         // Ожидание завершения всех потоков
         quic_thread.join();
         tcp_thread.join();
+        http1_thread.join();
 
         LOG_INFO("✅ Все серверы успешно запущены и работают.");
     }
@@ -1078,61 +1093,18 @@ void TcpProxy::handle_io_events() noexcept {
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
         FD_SET(client_fd, &read_fds);
-        FD_SET(backend_fd, &read_fds);
-        int max_fd = std::max(client_fd, backend_fd);
+        int max_fd = client_fd;
         timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0) {
             continue;
         }
 
-        // Проверка, есть ли SSL-объект в pending_ssl_accepts_
-        auto pending_it = pending_ssl_accepts_.find(client_fd);
-        if (pending_it != pending_ssl_accepts_.end()) {
-            SSL *ssl_client = pending_it->second;
-            int ret = SSL_accept(ssl_client);
-            if (ret <= 0) {
-                int ssl_error = SSL_get_error(ssl_client, ret);
-                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                    // Продолжаем ждать
-                    continue;
-                } else {
-                    LOG_ERROR("SSL_accept вернул {}, ошибка: {}", ret, ssl_error);
-                    ERR_print_errors_fp(stderr);
-                    SSL_free(ssl_client);
-                    pending_ssl_accepts_.erase(pending_it);
-                    ::close(client_fd);
-                    ::close(backend_fd);
-                    connections_.erase(client_fd);
-                    timeouts_.erase(client_fd);
-                    LOG_INFO("TCP-соединение закрыто по ошибке handshake: клиент {}, бэкенд {}", client_fd, backend_fd);
-                    continue;
-                }
-            }
-            // Handshake успешен
-            pending_ssl_accepts_.erase(pending_it);
-            LOG_INFO("TLS-handshake завершён для клиента {}", client_fd);
-        }
-
-        // Передача данных от клиента к бэкенду
+        // Передача данных от клиента к серверу
         if (FD_ISSET(client_fd, &read_fds)) {
             // 👇 ЛОГИРУЕМ ПОЛУЧЕНИЕ ДАННЫХ ОТ КЛИЕНТА
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
             if (!forward_data(client_fd, backend_fd)) {
-                // Соединение закрыто
-                ::close(client_fd);
-                ::close(backend_fd);
-                connections_.erase(client_fd);
-                timeouts_.erase(client_fd);
-                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-            } else {
-                // Обновляем таймаут
-                timeouts_[client_fd] = time(nullptr);
-            }
-        }
-        // Передача данных от бэкенда к клиенту
-        if (FD_ISSET(backend_fd, &read_fds)) {
-            if (!forward_data(backend_fd, client_fd)) {
                 // Соединение закрыто
                 ::close(client_fd);
                 ::close(backend_fd);
@@ -1648,6 +1620,7 @@ add_executable(quic_proxy
     src/http3/quic_udp_proxy.cpp
     src/http3/client_key.cpp
     src/http3/quic_udp_deduplicator.cpp
+    src/http1/server.cpp  # 👈 ДОБАВЛЕНО: файл HTTP/1.1 сервера
 )
 
 # Поиск и использование OpenSSL
