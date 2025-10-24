@@ -19,64 +19,19 @@
 const AppConfig app_config{};
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), ssl_ctx_(nullptr), port_(listen_port), backend_ip_(backend_ip), backend_port_(backend_port) {
-    // Создаем сокет для прослушивания
-    listen_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listen_fd_ < 0) {
-        LOG_ERROR("Не удалось создать сокет для прослушивания: {}", strerror(errno));
+    : listen_fd_(-1), ssl_ctx_(nullptr), listen_port_(listen_port), backend_ip_(backend_ip), backend_port_(backend_port) {
+    // === Инициализация OpenSSL ===
+    if (!OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr)) {
+        LOG_ERROR("❌ Не удалось инициализировать OpenSSL");
+        ERR_print_errors_fp(stderr);
         return;
     }
 
-    // Устанавливаем опции
-    int opt = 1;
-    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        LOG_ERROR("setsockopt SO_REUSEADDR failed: {}", strerror(errno));
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-        return;
-    }
-    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
-        LOG_ERROR("setsockopt SO_REUSEPORT failed: {}", strerror(errno));
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-        return;
-    }
-
-    // Устанавливаем неблокирующий режим
-    if (!set_nonblocking(listen_fd_)) {
-        LOG_ERROR("Не удалось установить неблокирующий режим для сокета прослушивания");
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-        return;
-    }
-
-    // Привязываемся к адресу и порту
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(port_);
-    if (bind(listen_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        LOG_ERROR("Не удалось привязать сокет к порту {}: {}", port_, strerror(errno));
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-        return;
-    }
-
-    // Начинаем прослушивать
-    if (listen(listen_fd_, SOMAXCONN) < 0) {
-        LOG_ERROR("Не удалось начать прослушивание: {}", strerror(errno));
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-        return;
-    }
-
-    // Создаем SSL-контекст
+    // Создаем контекст для сервера
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
     if (!ssl_ctx_) {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         ERR_print_errors_fp(stderr);
-        ::close(listen_fd_);
-        listen_fd_ = -1;
         return;
     }
 
@@ -90,8 +45,6 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
-        ::close(listen_fd_);
-        listen_fd_ = -1;
         return;
     }
     auto privkey_path = std::string(AppConfig::SSL_DIR) + "/" + std::string(AppConfig::PRIVEKEY_FILE);
@@ -100,13 +53,19 @@ TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_p
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
-        ::close(listen_fd_);
-        listen_fd_ = -1;
+        return;
+    }
+
+    // Проверяем соответствие ключа и сертификата
+    if (!SSL_CTX_check_private_key(ssl_ctx_)) {
+        LOG_ERROR("❌ Ключ и сертификат не совпадают");
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
         return;
     }
 
     LOG_INFO("✅ SSL-контекст успешно создан и настроен");
-    LOG_INFO("TCP-прокси запущен на порту {} для {}:{}", port_, backend_ip_, backend_port_);
 }
 
 TcpProxy::~TcpProxy() {
@@ -119,6 +78,53 @@ TcpProxy::~TcpProxy() {
 }
 
 bool TcpProxy::run() {
+    // Создаем сокет для прослушивания
+    listen_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listen_fd_ < 0) {
+        LOG_ERROR("Не удалось создать сокет для прослушивания: {}", strerror(errno));
+        return false;
+    }
+
+    // Устанавливаем опции
+    int opt = 1;
+    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        LOG_ERROR("setsockopt SO_REUSEADDR failed: {}", strerror(errno));
+        ::close(listen_fd_);
+        return false;
+    }
+    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        LOG_ERROR("setsockopt SO_REUSEPORT failed: {}", strerror(errno));
+        ::close(listen_fd_);
+        return false;
+    }
+
+    // Устанавливаем неблокирующий режим
+    if (!set_nonblocking(listen_fd_)) {
+        LOG_ERROR("Не удалось установить неблокирующий режим для сокета прослушивания");
+        ::close(listen_fd_);
+        return false;
+    }
+
+    // Привязываемся к адресу и порту
+    struct sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(listen_port_);
+    if (bind(listen_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        LOG_ERROR("Не удалось привязать сокет к порту {}: {}", listen_port_, strerror(errno));
+        ::close(listen_fd_);
+        return false;
+    }
+
+    // Начинаем прослушивать
+    if (listen(listen_fd_, SOMAXCONN) < 0) {
+        LOG_ERROR("Не удалось начать прослушивание: {}", strerror(errno));
+        ::close(listen_fd_);
+        return false;
+    }
+
+    LOG_INFO("TCP-прокси запущен на порту {} для {}:{}", listen_port_, backend_ip_, backend_port_);
+
     // Главный цикл
     while (running_) {
         fd_set read_fds, write_fds;
@@ -185,6 +191,43 @@ bool TcpProxy::set_nonblocking(int fd) noexcept {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
 
+int TcpProxy::connect_to_backend() noexcept {
+    int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (backend_fd < 0) {
+        LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
+        return -1;
+    }
+
+    // Устанавливаем неблокирующий режим
+    if (!set_nonblocking(backend_fd)) {
+        LOG_ERROR("Не удалось установить неблокирующий режим для сокета сервера");
+        ::close(backend_fd);
+        return -1;
+    }
+
+    // Устанавливаем адрес сервера
+    struct sockaddr_in backend_addr{};
+    backend_addr.sin_family = AF_INET;
+    backend_addr.sin_port = htons(backend_port_);
+    if (inet_pton(AF_INET, backend_ip_.c_str(), &backend_addr.sin_addr) <= 0) {
+        LOG_ERROR("Не удалось преобразовать IP-адрес сервера: {}", backend_ip_);
+        ::close(backend_fd);
+        return -1;
+    }
+
+    // Подключаемся к серверу
+    if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
+        if (errno != EINPROGRESS) {
+            LOG_ERROR("Не удалось подключиться к серверу в России: {}", strerror(errno));
+            ::close(backend_fd);
+            return -1;
+        }
+    }
+
+    LOG_INFO("✅ Новое TLS-соединение: бэкенд {}:{}", backend_ip_, backend_port_);
+    return backend_fd;
+}
+
 void TcpProxy::handle_new_connection() noexcept {
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
@@ -228,7 +271,7 @@ void TcpProxy::handle_new_connection() noexcept {
     SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
     // Подключаемся к серверу в России
-    int backend_fd = connect_to_backend(client_fd);
+    int backend_fd = connect_to_backend();
     if (backend_fd == -1) {
         LOG_ERROR("Не удалось подключиться к серверу в России");
         SSL_free(ssl);
@@ -239,43 +282,6 @@ void TcpProxy::handle_new_connection() noexcept {
     // Сохраняем соединение
     connections_[client_fd] = backend_fd;
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
-}
-
-int TcpProxy::connect_to_backend(int client_fd) noexcept {
-    int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (backend_fd < 0) {
-        LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
-        return -1;
-    }
-
-    // Устанавливаем неблокирующий режим
-    if (!set_nonblocking(backend_fd)) {
-        LOG_ERROR("Не удалось установить неблокирующий режим для сокета сервера");
-        ::close(backend_fd);
-        return -1;
-    }
-
-    // Устанавливаем адрес сервера
-    struct sockaddr_in backend_addr{};
-    backend_addr.sin_family = AF_INET;
-    backend_addr.sin_port = htons(backend_port_);
-    if (inet_pton(AF_INET, backend_ip_.c_str(), &backend_addr.sin_addr) <= 0) {
-        LOG_ERROR("Не удалось преобразовать IP-адрес сервера: {}", backend_ip_);
-        ::close(backend_fd);
-        return -1;
-    }
-
-    // Подключаемся к серверу
-    if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
-        if (errno != EINPROGRESS) {
-            LOG_ERROR("Не удалось подключиться к серверу в России: {}", strerror(errno));
-            ::close(backend_fd);
-            return -1;
-        }
-    }
-
-    LOG_INFO("✅ Новое TLS-соединение: клиент {}, бэкенд {}:{}", client_fd, backend_ip_, backend_port_);
-    return backend_fd;
 }
 
 void TcpProxy::handle_io_events() noexcept {

@@ -1,4 +1,3 @@
-// include/http2/tcp_proxy.hpp
 /**
  * @file tcp_proxy.hpp
  * @brief Заголовочный файл для TCP-прокси, обрабатывающего HTTP/2 и HTTP/1.1.
@@ -13,6 +12,7 @@
  * @license MIT
  */
 #pragma once
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -29,6 +29,7 @@
 #include "../logger/logger.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+
 /**
  * @brief Класс TCP-прокси для HTTP/2 и HTTP/1.1.
  *
@@ -45,6 +46,11 @@ public:
     TcpProxy(int listen_port, const std::string& backend_ip, int backend_port);
 
     /**
+     * @brief Деструктор.
+     */
+    ~TcpProxy();
+
+    /**
      * @brief Запускает TCP-прокси.
      * @return true при успешном завершении, false при ошибке.
      */
@@ -57,23 +63,15 @@ public:
 
 private:
     int listen_fd_;          ///< Сокет для прослушивания входящих соединений
+    int listen_port_;        ///< Порт, на котором слушает прокси
     int backend_port_;       ///< Порт сервера в России
     std::string backend_ip_; ///< IP сервера в России
-    int listen_port_;        ///< Порт, на котором слушает прокси
-    volatile sig_atomic_t running_{true}; ///< Флаг работы прокси
+    volatile sig_atomic_t running_{true}; ///< Флаг работы сервера
+    std::unordered_map<int, int> connections_; ///< Карта активных соединений: client_fd -> backend_fd
+    std::unordered_map<int, time_t> timeouts_; ///< Карта таймаутов: client_fd -> время последней активности
+    SSL_CTX* ssl_ctx_;       ///< SSL-контекст для TLS-соединений
 
-    // Карта активных соединений: client_fd -> backend_fd
-    std::unordered_map<int, int> connections_;
-    // Карта таймаутов: client_fd -> время последней активности
-    std::unordered_map<int, time_t> timeouts_;
-
-    // Добавить в private-секцию класса TcpProxy
-std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-объекты, которые ждут завершения handshake
-
-  // SSL-контекст для TLS-соединений
-    SSL_CTX* ssl_ctx_;
-
-/**
+    /**
      * @brief Устанавливает неблокирующий режим сокета.
      * @param fd Дескриптор сокета.
      * @return true при успехе, false при ошибке.
@@ -87,14 +85,6 @@ std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-о
     [[nodiscard]] int connect_to_backend() noexcept;
 
     /**
-     * @brief Передает данные между клиентом и сервером.
-     * @param client_fd Дескриптор сокета клиента.
-     * @param backend_fd Дескриптор сокета сервера.
-     * @return true, если соединение активно, false — если нужно закрыть.
-     */
-    [[nodiscard]] bool forward_data(int client_fd, int backend_fd) noexcept;
-
-    /**
      * @brief Обрабатывает новое входящее соединение.
      */
     void handle_new_connection() noexcept;
@@ -103,4 +93,12 @@ std::unordered_map<int, SSL*> pending_ssl_accepts_; // Сохраняем SSL-о
      * @brief Обрабатывает данные от клиента или сервера.
      */
     void handle_io_events() noexcept;
+
+    /**
+     * @brief Передает данные между клиентом и сервером.
+     * @param from_fd Дескриптор сокета источника.
+     * @param to_fd Дескриптор сокета назначения.
+     * @return true, если соединение активно, false — если нужно закрыть.
+     */
+    [[nodiscard]] bool forward_data(int from_fd, int to_fd) noexcept;
 };
