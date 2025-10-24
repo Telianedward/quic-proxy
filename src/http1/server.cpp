@@ -174,8 +174,16 @@ void Http1Server::handle_new_connection() noexcept {
     uint16_t client_port_num = ntohs(client_addr.sin_port);
     LOG_INFO("🟢 Новое соединение от клиента: {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
 
+    // Подключаемся к серверу в России
+    int backend_fd = connect_to_backend();
+    if (backend_fd == -1) {
+        LOG_ERROR("❌ Не удалось подключиться к серверу в России. Закрываем соединение с клиентом.");
+        ::close(client_fd);
+        return; // ❗ ВАЖНО: НЕ ДОБАВЛЯТЬ В connections_!
+    }
+
     // Сохраняем соединение
-    connections_[client_fd] = -1; // Для HTTP/1.1 нет бэкенда, поэтому -1
+    connections_[client_fd] = backend_fd;
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
 }
 
