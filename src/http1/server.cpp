@@ -274,38 +274,71 @@ void Http1Server::handle_io_events() noexcept {
         }
     }
 }
+
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
+    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={})", from_fd, to_fd);
+
     char buffer[8192];
+    LOG_DEBUG("📦 Буфер создан: размер {} байт", sizeof(buffer));
+
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
+    LOG_DEBUG("📥 recv(from_fd={}, buffer_size={}) вернул bytes_read={}", from_fd, sizeof(buffer), bytes_read);
+
     if (bytes_read > 0) {
-        // 👇 ПЕРЕСЫЛАЕМ ДАННЫЕ БЕЗ ИЗМЕНЕНИЙ — НЕ ГЕНЕРИРУЕМ ОТВЕТ!
+        LOG_INFO("✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
+
         ssize_t total_sent = 0;
+        LOG_DEBUG("📌 total_sent инициализирован: {}", total_sent);
+
         while (total_sent < bytes_read) {
-            ssize_t bytes_sent = send(to_fd, buffer + total_sent, bytes_read - total_sent, 0);
+            size_t remaining = static_cast<size_t>(bytes_read - total_sent);
+            LOG_DEBUG("⏳ Осталось отправить {} байт (total_sent={}, bytes_read={})", remaining, total_sent, bytes_read);
+
+            ssize_t bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+            LOG_DEBUG("📤 send(to_fd={}, offset={}, size={}) вернул bytes_sent={}",
+                      to_fd, total_sent, remaining, bytes_sent);
+
             if (bytes_sent < 0) {
+                LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
+                    LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
                     return true;
                 } else {
-                    LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
+                    LOG_CRITICAL("💥 Критическая ошибка отправки данных: {}", strerror(errno));
                     return false;
                 }
             }
+
             total_sent += bytes_sent;
+            LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
+
+            if (bytes_sent == 0) {
+                LOG_WARN("⚠️ send() вернул 0 — возможно, соединение закрыто на стороне получателя");
+                break;
+            }
         }
-        LOG_DEBUG("Передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+
+        LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         return true;
+
     } else if (bytes_read == 0) {
-        // Клиент закрыл соединение
+        LOG_INFO("🔚 Клиент (from_fd={}) закрыл соединение (recv вернул 0)", from_fd);
         return false;
+
     } else {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            LOG_ERROR("Ошибка чтения данных: {}", strerror(errno));
+        LOG_DEBUG("⏸️ recv() вернул -1: errno={} ({})", errno, strerror(errno));
+
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            LOG_DEBUG("🔁 recv() вернул EAGAIN/EWOULDBLOCK — это нормально в неблокирующем режиме");
+            return true;
+        } else {
+            LOG_ERROR("❌ Ошибка чтения данных от клиента (from_fd={}): {}", from_fd, strerror(errno));
             return false;
         }
-        return true;
     }
 }
+
 std::string Http1Server::generate_index_html() const {
     return R"(<!DOCTYPE html>
 <html lang="ru">
