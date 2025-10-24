@@ -151,6 +151,39 @@ bool Http1Server::set_nonblocking(int fd) noexcept {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
 
+int Http1Server::connect_to_backend() noexcept {
+    int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (backend_fd < 0) {
+        LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
+        return -1;
+    }
+    // Устанавливаем неблокирующий режим
+    if (!set_nonblocking(backend_fd)) {
+        LOG_ERROR("Не удалось установить неблокирующий режим для сокета сервера");
+        ::close(backend_fd);
+        return -1;
+    }
+    // Устанавливаем адрес сервера
+    struct sockaddr_in backend_addr{};
+    backend_addr.sin_family = AF_INET;
+    backend_addr.sin_port = htons(backend_port_);
+    if (inet_pton(AF_INET, backend_ip_.c_str(), &backend_addr.sin_addr) <= 0) {
+        LOG_ERROR("Не удалось преобразовать IP-адрес сервера: {}", backend_ip_);
+        ::close(backend_fd);
+        return -1;
+    }
+    // Подключаемся к серверу
+    if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
+        if (errno != EINPROGRESS) {
+            LOG_ERROR("Не удалось подключиться к серверу в России: {}", strerror(errno));
+            ::close(backend_fd);
+            return -1;
+        }
+    }
+    LOG_INFO("✅ Новое HTTP/1.1 соединение: бэкенд {}:{}", backend_ip_, backend_port_);
+    return backend_fd;
+}
+
 void Http1Server::handle_new_connection() noexcept {
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
@@ -187,8 +220,6 @@ void Http1Server::handle_new_connection() noexcept {
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
 }
 
-// В начале файла добавьте:
-#include <poll.h>
 
 // Замените метод handle_io_events()
 void Http1Server::handle_io_events() noexcept {
