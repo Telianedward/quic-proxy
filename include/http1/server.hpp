@@ -38,6 +38,14 @@
  */
 class Http1Server {
 public:
+    struct PendingSend {
+        int fd;           ///< Сокет назначения
+        const char* ptr;  ///< Указатель на начало данных
+        size_t len;       ///< Общая длина данных
+        size_t sent;      ///< Сколько уже отправлено
+    };
+
+    std::unordered_map<int, PendingSend> pending_sends_; // Карта: client_fd -> PendingSend
     /**
      * @brief Конструктор.
      * @param port Порт, на котором будет слушать сервер (по умолчанию 8587).
