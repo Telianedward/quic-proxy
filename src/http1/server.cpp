@@ -299,12 +299,11 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
         // Отправляем ответ
         ssize_t total_sent = 0;
         while (total_sent < static_cast<ssize_t>(response.size())) {
-            ssize_t bytes_sent = send(from_fd, response.c_str() + total_sent, response.size() - total_sent, 0);
+            ssize_t bytes_sent = send(to_fd, response.c_str() + total_sent, response.size() - total_sent, 0);
             if (bytes_sent < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    // Буфер отправки заполнен — попробуем позже
                     LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
-                    return true; // Соединение активно, продолжаем
+                    return true;
                 } else {
                     LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
                     return false;
@@ -314,7 +313,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
         }
 
         LOG_DEBUG("Передано {} байт от {} к {}", response.size(), from_fd, to_fd);
-        return true;
+        return true; // 👈 Не закрываем соединение — пусть клиент закроет его
     } else if (bytes_read == 0) {
         // Клиент закрыл соединение
         return false;
@@ -323,10 +322,9 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
             LOG_ERROR("Ошибка чтения данных: {}", strerror(errno));
             return false;
         }
-        return true; // Нет данных, продолжаем
+        return true;
     }
 }
-
 std::string Http1Server::generate_index_html() const {
     return R"(<!DOCTYPE html>
 <html lang="ru">
