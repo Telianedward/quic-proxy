@@ -275,45 +275,47 @@ void Http1Server::handle_io_events() noexcept {
     }
 }
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
+    // Если есть незавершённая отправка — продолжаем её
+    if (pending_sends_.find(from_fd) != pending_sends_.end()) {
+        auto& ps = pending_sends_[from_fd];
+        ssize_t bytes_sent = send(ps.fd, ps.ptr + ps.sent, ps.len - ps.sent, 0);
+        if (bytes_sent < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                LOG_DEBUG("Буфер отправки заполнен, продолжим позже (отправлено {}/{} байт)", ps.sent, ps.len);
+                return true; // Сохраняем соединение
+            } else {
+                LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
+                pending_sends_.erase(from_fd);
+                return false;
+            }
+        }
+        ps.sent += bytes_sent;
+        LOG_DEBUG("Отправлено {} байт из {} (осталось {})", bytes_sent, ps.len, ps.len - ps.sent);
+
+        if (ps.sent >= ps.len) {
+            // Отправка завершена
+            pending_sends_.erase(from_fd);
+            LOG_INFO("✅ Полностью отправлено {} байт на бэкенд", ps.len);
+            return true;
+        }
+        // Ещё не всё отправлено — продолжаем
+        return true;
+    }
+
+    // Нет незавершённой отправки — читаем новые данные
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
     if (bytes_read > 0) {
-        // Парсим HTTP-запрос
-        std::string request(buffer, bytes_read);
-        std::string response;
+        // Создаём новую запись в pending_sends_
+        pending_sends_[from_fd] = {
+            .fd = to_fd,
+            .ptr = buffer,
+            .len = static_cast<size_t>(bytes_read),
+            .sent = 0
+        };
 
-        if (request.find("GET / ") != std::string::npos || request.find("GET /index.html") != std::string::npos) {
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + std::to_string(generate_index_html().size()) + "\r\nConnection: close\r\n\r\n" + generate_index_html();
-        } else if (request.find("GET /favicon.ico") != std::string::npos) {
-            response = "HTTP/1.1 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: " + std::to_string(generate_favicon().size()) + "\r\nConnection: close\r\n\r\n" + generate_favicon();
-        } else if (request.find("GET /css/main.css") != std::string::npos) {
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nContent-Length: " + std::to_string(generate_main_css().size()) + "\r\nConnection: close\r\n\r\n" + generate_main_css();
-        } else if (request.find("GET /js/main.js") != std::string::npos) {
-            response = "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: " + std::to_string(generate_main_js().size()) + "\r\nConnection: close\r\n\r\n" + generate_main_js();
-        } else if (request.find("HEAD ") != std::string::npos) {
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + std::to_string(generate_index_html().size()) + "\r\nConnection: close\r\n\r\n";
-        } else {
-            response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: 13\r\nConnection: close\r\n\r\n404 Not Found";
-        }
-
-        // Отправляем ответ
-        ssize_t total_sent = 0;
-        while (total_sent < static_cast<ssize_t>(response.size())) {
-            ssize_t bytes_sent = send(to_fd, response.c_str() + total_sent, response.size() - total_sent, 0);
-            if (bytes_sent < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
-                    return true;
-                } else {
-                    LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
-                    return false;
-                }
-            }
-            total_sent += bytes_sent;
-        }
-
-        LOG_DEBUG("Передано {} байт от {} к {}", response.size(), from_fd, to_fd);
-        return true; // 👈 Не закрываем соединение — пусть клиент закроет его
+        // Пытаемся отправить сразу
+        return forward_data(from_fd, to_fd); // Рекурсивный вызов — безопасен, так как не зацикливается
     } else if (bytes_read == 0) {
         // Клиент закрыл соединение
         return false;
