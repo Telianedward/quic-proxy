@@ -16,6 +16,7 @@
 #include <cstring>
 #include <algorithm>
 #include <sstream>
+#include <poll.h>
 
 // === Реализация методов класса Http1Server ===
 
@@ -178,36 +179,66 @@ void Http1Server::handle_new_connection() noexcept {
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
 }
 
-void Http1Server::handle_io_events() noexcept {
-    // Создаем копию карты, чтобы избежать проблем при изменении во время итерации
-    auto connections_copy = connections_;
-    for (const auto& [client_fd, backend_fd] : connections_copy) {
-        fd_set read_fds, write_fds;
-        FD_ZERO(&read_fds);
-        FD_ZERO(&write_fds);
-        FD_SET(client_fd, &read_fds);
-        int max_fd = client_fd;
-        timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
-        int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-        if (activity <= 0) {
-            continue;
-        }
+// В начале файла добавьте:
+#include <poll.h>
 
-        // Передача данных от клиента к серверу
-        if (FD_ISSET(client_fd, &read_fds)) {
-            // 👇 ЛОГИРУЕМ ПОЛУЧЕНИЕ ДАННЫХ ОТ КЛИЕНТА
+// Замените метод handle_io_events()
+void Http1Server::handle_io_events() noexcept {
+    // Создаем вектор для pollfd
+    std::vector<pollfd> fds;
+    // Добавляем все активные соединения
+    for (const auto& [client_fd, backend_fd] : connections_) {
+        // Добавляем клиентский сокет
+        fds.push_back({.fd = client_fd, .events = POLLIN, .revents = 0});
+        // Добавляем бэкенд-сокет
+        fds.push_back({.fd = backend_fd, .events = POLLIN, .revents = 0});
+    }
+
+    // Вызываем poll
+    int activity = poll(fds.data(), static_cast<nfds_t>(fds.size()), 10); // 10 мс таймаут
+
+    if (activity < 0) {
+        if (errno != EINTR) {
+            LOG_ERROR("Ошибка poll: {}", strerror(errno));
+        }
+        return;
+    }
+
+    // Обработка событий
+    size_t i = 0;
+    for (const auto& [client_fd, backend_fd] : connections_) {
+        if (i >= fds.size()) break;
+
+        // Проверяем клиентский сокет
+        if (fds[i].revents & (POLLIN | POLLERR | POLLHUP)) {
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
-            if (!forward_data(client_fd, -1)) {
-                // Соединение закрыто
+            if (!forward_data(client_fd, backend_fd)) {
                 ::close(client_fd);
+                ::close(backend_fd);
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                LOG_INFO("TCP-соединение закрыто: клиент {}", client_fd);
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
             } else {
-                // Обновляем таймаут
                 timeouts_[client_fd] = time(nullptr);
             }
         }
+        ++i;
+
+        // Проверяем бэкенд-сокет
+        if (i >= fds.size()) break;
+        if (fds[i].revents & (POLLIN | POLLERR | POLLHUP)) {
+            LOG_INFO("📤 Получены данные от сервера {}", backend_fd);
+            if (!forward_data(backend_fd, client_fd)) {
+                ::close(client_fd);
+                ::close(backend_fd);
+                connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
+            } else {
+                timeouts_[client_fd] = time(nullptr);
+            }
+        }
+        ++i;
     }
 }
 
