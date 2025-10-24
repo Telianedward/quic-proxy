@@ -45,27 +45,27 @@ int main() {
         const int backend_http1_port = 8587; // 👈 Порт HTTP/1.1 сервера в РФ (внутренний)
 
         // 🚀 Создание и запуск серверов
-        QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_http3_port);
-        TcpProxy tcp_proxy(http2_port, backend_ip, backend_http2_port);
+        // QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_http3_port);
+        // TcpProxy tcp_proxy(http2_port, backend_ip, backend_http2_port);
       Http1Server http1_server(http1_port, backend_ip, backend_http1_port); // 👈 Передаём backend_ip и backend_http1_port
 
-        // Запуск QUIC-UDP прокси
-        std::thread quic_thread([http3_port, &quic_proxy]() {
-            LOG_INFO("🚀 QUIC-UDP прокси запущен на порту {}", http3_port);
-            if (!quic_proxy.run()) {
-                LOG_ERROR("❌ QUIC-UDP прокси завершился с ошибкой");
-                std::exit(EXIT_FAILURE);
-            }
-        });
+        // // Запуск QUIC-UDP прокси
+        // std::thread quic_thread([http3_port, &quic_proxy]() {
+        //     LOG_INFO("🚀 QUIC-UDP прокси запущен на порту {}", http3_port);
+        //     if (!quic_proxy.run()) {
+        //         LOG_ERROR("❌ QUIC-UDP прокси завершился с ошибкой");
+        //         std::exit(EXIT_FAILURE);
+        //     }
+        // });
 
-        // Запуск TCP-прокси
-        std::thread tcp_thread([http2_port, &tcp_proxy]() {
-            LOG_INFO("🚀 TCP-прокси запущен на порту {}", http2_port);
-            if (!tcp_proxy.run()) {
-                LOG_ERROR("❌ TCP-прокси завершился с ошибкой");
-                std::exit(EXIT_FAILURE);
-            }
-        });
+        // // Запуск TCP-прокси
+        // std::thread tcp_thread([http2_port, &tcp_proxy]() {
+        //     LOG_INFO("🚀 TCP-прокси запущен на порту {}", http2_port);
+        //     if (!tcp_proxy.run()) {
+        //         LOG_ERROR("❌ TCP-прокси завершился с ошибкой");
+        //         std::exit(EXIT_FAILURE);
+        //     }
+        // });
 
           // Запуск HTTP/1.1 сервера
         std::thread http1_thread([http1_port, &http1_server]() {
@@ -81,8 +81,8 @@ int main() {
         std::signal(SIGTERM, signal_handler);
 
         // Ожидание завершения всех потоков
-        quic_thread.join();
-        tcp_thread.join();
+        // quic_thread.join();
+        // tcp_thread.join();
         http1_thread.join();
 
         LOG_INFO("✅ Все серверы успешно запущены и работают.");
