@@ -283,7 +283,13 @@ void Http1Server::handle_io_events() noexcept {
         // Передача данных от клиента к серверу
         if (FD_ISSET(client_fd, &read_fds)) {
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
-            if (!forward_data(client_fd, backend_fd)) {
+            LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, backend_fd);
+
+            bool keep_alive = forward_data(client_fd, backend_fd);
+
+            LOG_DEBUG("⬅️ forward_data вернул: {}", keep_alive ? "true" : "false");
+
+            if (!keep_alive) {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
@@ -291,6 +297,7 @@ void Http1Server::handle_io_events() noexcept {
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
             } else {
                 timeouts_[client_fd] = time(nullptr);
+                LOG_DEBUG("⏱️ Таймаут обновлён для client_fd={}: {}", client_fd, timeouts_[client_fd]);
             }
         }
 
