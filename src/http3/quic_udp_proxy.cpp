@@ -21,7 +21,15 @@
 // === Реализация методов класса QuicUdpProxy ===
 
 QuicUdpProxy::QuicUdpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_port_(listen_port), backend_port_(backend_port), backend_ip_(backend_ip) {}
+    : udp_fd_(-1),
+      wg_fd_(-1),
+      listen_port_(listen_port),
+      backend_port_(backend_port),
+      backend_ip_(backend_ip),
+      running_(true),
+      session_map_{},
+      reverse_map_{},
+      deduplicator_{} {}
 
 bool QuicUdpProxy::run() {
     // Инициализация генератора случайных чисел

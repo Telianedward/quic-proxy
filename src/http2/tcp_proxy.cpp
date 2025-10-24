@@ -19,7 +19,14 @@
 const AppConfig app_config{};
 
 TcpProxy::TcpProxy(int listen_port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), ssl_ctx_(nullptr), listen_port_(listen_port), backend_ip_(backend_ip), backend_port_(backend_port) {
+    : listen_fd_(-1),
+      listen_port_(listen_port),
+      backend_port_(backend_port),
+      backend_ip_(backend_ip),
+      running_(true),
+      connections_{},
+      timeouts_{},
+      ssl_ctx_(nullptr) {
     // === Инициализация OpenSSL ===
     if (!OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr)) {
         LOG_ERROR("❌ Не удалось инициализировать OpenSSL");
