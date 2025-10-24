@@ -275,47 +275,26 @@ void Http1Server::handle_io_events() noexcept {
     }
 }
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
-    // Если есть незавершённая отправка — продолжаем её
-    if (pending_sends_.find(from_fd) != pending_sends_.end()) {
-        auto& ps = pending_sends_[from_fd];
-        ssize_t bytes_sent = send(ps.fd, ps.ptr + ps.sent, ps.len - ps.sent, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                LOG_DEBUG("Буфер отправки заполнен, продолжим позже (отправлено {}/{} байт)", ps.sent, ps.len);
-                return true; // Сохраняем соединение
-            } else {
-                LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
-                pending_sends_.erase(from_fd);
-                return false;
-            }
-        }
-        ps.sent += bytes_sent;
-        LOG_DEBUG("Отправлено {} байт из {} (осталось {})", bytes_sent, ps.len, ps.len - ps.sent);
-
-        if (ps.sent >= ps.len) {
-            // Отправка завершена
-            pending_sends_.erase(from_fd);
-            LOG_INFO("✅ Полностью отправлено {} байт на бэкенд", ps.len);
-            return true;
-        }
-        // Ещё не всё отправлено — продолжаем
-        return true;
-    }
-
-    // Нет незавершённой отправки — читаем новые данные
     char buffer[8192];
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
     if (bytes_read > 0) {
-        // Создаём новую запись в pending_sends_
-        pending_sends_[from_fd] = {
-            .fd = to_fd,
-            .ptr = buffer,
-            .len = static_cast<size_t>(bytes_read),
-            .sent = 0
-        };
-
-        // Пытаемся отправить сразу
-        return forward_data(from_fd, to_fd); // Рекурсивный вызов — безопасен, так как не зацикливается
+        // 👇 ПЕРЕСЫЛАЕМ ДАННЫЕ БЕЗ ИЗМЕНЕНИЙ — НЕ ГЕНЕРИРУЕМ ОТВЕТ!
+        ssize_t total_sent = 0;
+        while (total_sent < bytes_read) {
+            ssize_t bytes_sent = send(to_fd, buffer + total_sent, bytes_read - total_sent, 0);
+            if (bytes_sent < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    LOG_DEBUG("Буфер отправки заполнен, попробуем позже");
+                    return true;
+                } else {
+                    LOG_ERROR("Ошибка отправки данных: {}", strerror(errno));
+                    return false;
+                }
+            }
+            total_sent += bytes_sent;
+        }
+        LOG_DEBUG("Передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+        return true;
     } else if (bytes_read == 0) {
         // Клиент закрыл соединение
         return false;
