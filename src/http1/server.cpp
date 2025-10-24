@@ -157,12 +157,14 @@ int Http1Server::connect_to_backend() noexcept {
         LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
         return -1;
     }
+
     // Устанавливаем неблокирующий режим
     if (!set_nonblocking(backend_fd)) {
         LOG_ERROR("Не удалось установить неблокирующий режим для сокета сервера");
         ::close(backend_fd);
         return -1;
     }
+
     // Устанавливаем адрес сервера
     struct sockaddr_in backend_addr{};
     backend_addr.sin_family = AF_INET;
@@ -172,6 +174,7 @@ int Http1Server::connect_to_backend() noexcept {
         ::close(backend_fd);
         return -1;
     }
+
     // Подключаемся к серверу
     if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
         if (errno != EINPROGRESS) {
@@ -179,8 +182,41 @@ int Http1Server::connect_to_backend() noexcept {
             ::close(backend_fd);
             return -1;
         }
+        LOG_DEBUG("⏳ Подключение к бэкенду {}:{} в процессе...", backend_ip_, backend_port_);
+
+        // Ждём завершения подключения
+        fd_set write_fds;
+        FD_ZERO(&write_fds);
+        FD_SET(backend_fd, &write_fds);
+
+        timeval timeout{.tv_sec = 5, .tv_usec = 0}; // Таймаут 5 секунд
+        int activity = select(backend_fd + 1, nullptr, &write_fds, nullptr, &timeout);
+        if (activity <= 0) {
+            LOG_ERROR("❌ Таймаут подключения к бэкенду {}:{} (errno={})", backend_ip_, backend_port_, errno);
+            ::close(backend_fd);
+            return -1;
+        }
+
+        // Проверяем, успешно ли подключились
+        int error = 0;
+        socklen_t len = sizeof(error);
+        if (getsockopt(backend_fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
+            LOG_ERROR("❌ Не удалось получить статус подключения: {}", strerror(errno));
+            ::close(backend_fd);
+            return -1;
+        }
+
+        if (error != 0) {
+            LOG_ERROR("❌ Ошибка подключения к бэкенду {}:{}: {}", backend_ip_, backend_port_, strerror(error));
+            ::close(backend_fd);
+            return -1;
+        }
+
+        LOG_INFO("✅ Подключение к бэкенду {}:{} успешно установлено", backend_ip_, backend_port_);
+    } else {
+        LOG_INFO("✅ Подключение к бэкенду {}:{} успешно установлено (мгновенно)", backend_ip_, backend_port_);
     }
-    LOG_INFO("✅ Новое HTTP/1.1 соединение: бэкенд {}:{}", backend_ip_, backend_port_);
+
     return backend_fd;
 }
 
