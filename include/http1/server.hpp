@@ -66,6 +66,12 @@ private:
     std::string backend_ip_; ///< IP сервера в России
     int backend_port_;       ///< Порт сервера в России
 
+/**
+ * @brief Создает и подключается к сокету сервера в России.
+ * @return Дескриптор сокета или -1 при ошибке.
+ */
+[[nodiscard]] int connect_to_backend() noexcept;
+
     /**
      * @brief Устанавливает неблокирующий режим сокета.
      * @param fd Дескриптор сокета.
