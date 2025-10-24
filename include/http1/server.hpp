@@ -30,7 +30,24 @@
 #include <thread>
 #include "../logger/logger.h"
 
+
+
 /**
+ * @brief Структура для отслеживания незавершённых отправок.
+ *
+ * Используется для буферизации данных при EAGAIN/EWOULDBLOCK.
+ */
+struct PendingSend {
+    int fd;           ///< Сокет назначения
+    const char* ptr;  ///< Указатель на начало данных
+    size_t len;       ///< Общая длина данных
+    size_t sent;      ///< Сколько уже отправлено
+};
+
+
+/**
+ *
+ *
  * @brief Класс HTTP/1.1 сервера.
  *
  * Слушает входящие TCP-соединения на указанном порту и обрабатывает HTTP/1.1 запросы.
@@ -38,12 +55,7 @@
  */
 class Http1Server {
 public:
-    struct PendingSend {
-        int fd;           ///< Сокет назначения
-        const char* ptr;  ///< Указатель на начало данных
-        size_t len;       ///< Общая длина данных
-        size_t sent;      ///< Сколько уже отправлено
-    };
+
 
     std::unordered_map<int, PendingSend> pending_sends_; // Карта: client_fd -> PendingSend
     /**
