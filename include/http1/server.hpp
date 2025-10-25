@@ -105,6 +105,15 @@ private:
     void handle_io_events() noexcept;
 
 /**
+ * @brief Передает данные между клиентом и сервером.
+ * @param from_fd Дескриптор сокета источника.
+ * @param to_fd Дескриптор сокета назначения.
+ * @param request_str Строка запроса от клиента (для парсинга).
+ * @return true, если соединение активно, false — если нужно закрыть.
+ */
+[[nodiscard]] bool forward_data(int from_fd, int to_fd, const std::string& request_str) noexcept;
+
+/**
  * @brief Передает данные между клиентом и сервером без парсинга запроса.
  * Используется для ответов от бэкенда к клиенту.
  * @param from_fd Дескриптор сокета источника.
