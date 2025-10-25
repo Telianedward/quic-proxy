@@ -355,6 +355,16 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
             LOG_DEBUG("📤 send(to_fd={}, offset={}, size={}) вернул bytes_sent={}",
                       to_fd, total_sent, remaining, bytes_sent);
 
+                if (bytes_sent > 0) {
+    std::string sent_chunk(buffer + total_sent, static_cast<size_t>(bytes_sent));
+    // Убираем непечатаемые символы для читаемости (опционально)
+    for (char& c : sent_chunk) {
+        if (c < 32 && c != '\n' && c != '\r' && c != '\t') c = '?';
+    }
+    LOG_DEBUG("📦 Отправлено содержимое (первые {} байт):\n{}",
+              std::min<size_t>(256, sent_chunk.size()),
+              sent_chunk.substr(0, std::min<size_t>(256, sent_chunk.size())));
+}
             if (bytes_sent < 0) {
                 LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
 
