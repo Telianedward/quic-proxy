@@ -344,7 +344,15 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
 
     if (bytes_read > 0) {
         LOG_INFO("✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
+    // 👇 ЛОГИРУЕМ СОДЕРЖИМОЕ (ВСЁ, ЧТО ПОЛУЧИЛИ)
+    std::string received_data(buffer, static_cast<size_t>(bytes_read));
 
+    // Заменяем непечатаемые символы на '?' для читаемости
+    for (char& c : received_data) {
+        if (c < 32 && c != '\n' && c != '\r' && c != '\t') c = '?';
+    }
+
+    LOG_DEBUG("📥 Получено от бэкенда ({} байт):\n{}", bytes_read, received_data);
         ssize_t total_sent = 0;
         LOG_DEBUG("📌 total_sent инициализирован: {}", total_sent);
 
