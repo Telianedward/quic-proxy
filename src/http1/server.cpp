@@ -333,12 +333,11 @@ void Http1Server::handle_io_events() noexcept {
             if (bytes_read > 0) {
                 std::string request_str(buffer, bytes_read); // 👈 Объявление переменной
                 LOG_INFO("✅  ( 2 )  Полный запрос от клиента ({} байт):", bytes_read);
-                if (!request_str.empty()) {
-                    LOG_DEBUG("📝 Содержимое запроса:
-{}", request_str);
-                } else {
-                    LOG_DEBUG("📝 Запрос пустой");
-                }
+            if (!request_str.empty()) {
+                LOG_DEBUG("📝 Содержимое запроса:\n{}", request_str);
+            } else {
+                LOG_DEBUG("📝 Запрос пустой");
+            }
 
                 // 👇 Передаём request_str в forward_data
                 bool keep_alive = forward_data(client_fd, backend_fd, request_str);
