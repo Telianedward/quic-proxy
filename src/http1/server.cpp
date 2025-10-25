@@ -23,46 +23,6 @@
 Http1Server::Http1Server(int port, const std::string& backend_ip, int backend_port)
     : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port) {}
 
-// 👇 Сделали parse_http_request статическим методом класса
-HttpRequest Http1Server::parse_http_request(const std::string& request_str) {
-    HttpRequest req;
-    size_t pos = request_str.find("\r\n");
-    if (pos != std::string::npos) {
-        std::string first_line = request_str.substr(0, pos);
-        std::istringstream iss(first_line);
-        iss >> req.method >> req.url >> req.version;
-    }
-
-    // Парсим заголовки
-    size_t start = pos + 2; // Пропускаем \r\n
-    while (start < request_str.size()) {
-        size_t end = request_str.find("\r\n", start);
-        if (end == std::string::npos) break;
-
-        std::string line = request_str.substr(start, end - start);
-        if (line.empty()) { // Пустая строка — конец заголовков
-            req.body = request_str.substr(end + 2); // Тело запроса начинается после \r\n\r\n
-            break;
-        }
-
-        size_t colon_pos = line.find(':');
-        if (colon_pos != std::string::npos) {
-            std::string key = line.substr(0, colon_pos);
-            std::string value = line.substr(colon_pos + 1);
-            // Удаляем пробелы в начале и конце
-            key.erase(0, key.find_first_not_of(" \t"));
-            key.erase(key.find_last_not_of(" \t") + 1);
-            value.erase(0, value.find_first_not_of(" \t"));
-            value.erase(value.find_last_not_of(" \t") + 1);
-            req.headers[key] = value;
-        }
-
-        start = end + 2;
-    }
-
-    return req;
-}
-
 bool Http1Server::run() {
     // Создаем сокет для прослушивания
     listen_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -191,8 +151,7 @@ bool Http1Server::set_nonblocking(int fd) noexcept {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
 
-// Метод connect_to_backend()
-int Http1Server::connect_to_backend() noexcept { // 👈 Это должно быть здесь
+int Http1Server::connect_to_backend() noexcept {
     int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (backend_fd < 0) {
         LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
@@ -260,7 +219,6 @@ int Http1Server::connect_to_backend() noexcept { // 👈 Это должно б�
 
     return backend_fd;
 }
-
 void Http1Server::handle_new_connection() noexcept {
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
@@ -297,6 +255,7 @@ void Http1Server::handle_new_connection() noexcept {
     timeouts_[client_fd] = time(nullptr); // Устанавливаем таймаут
 }
 
+
 // Замените метод handle_io_events()
 void Http1Server::handle_io_events() noexcept {
     auto connections_copy = connections_;
@@ -321,52 +280,39 @@ void Http1Server::handle_io_events() noexcept {
             continue;
         }
 
+
+        // // Передача данных от клиента к серверу
+        // if (FD_ISSET(client_fd, &read_fds)) {
+        //     LOG_INFO("📥 Получены данные от клиента {}", client_fd);
+        //     if (!forward_data(client_fd, backend_fd)) {
+        //         ::close(client_fd);
+        //         ::close(backend_fd);
+        //         connections_.erase(client_fd);
+        //         timeouts_.erase(client_fd);
+        //         LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
+        //     } else {
+        //         timeouts_[client_fd] = time(nullptr);
+        //     }
+        // }
+
         // Передача данных от клиента к серверу
         if (FD_ISSET(client_fd, &read_fds)) {
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
             LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, backend_fd);
 
-            // Читаем данные от клиента
-            char buffer[8192];
-            ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
-            if (bytes_read > 0) {
-                std::string request_str(buffer, bytes_read); // 👈 Объявление переменной
-                LOG_INFO("✅  ( 2 )  Полный запрос от клиента ({} байт):", bytes_read);
-                if (!request_str.empty()) {
-                    LOG_DEBUG("📝 Содержимое запроса:
-{}", request_str);
-                } else {
-                    LOG_DEBUG("📝 Запрос пустой");
-                }
+            bool keep_alive = forward_data(client_fd, backend_fd);
 
-                // 👇 Передаём request_str в forward_data
-                bool keep_alive = forward_data(client_fd, backend_fd, request_str);
-                LOG_DEBUG("⬅️ forward_data вернул: {}", keep_alive ? "true" : "false");
+            LOG_DEBUG("⬅️ forward_data вернул: {}", keep_alive ? "true" : "false");
 
-                if (!keep_alive) {
-                    ::close(client_fd);
-                    ::close(backend_fd);
-                    connections_.erase(client_fd);
-                    timeouts_.erase(client_fd);
-                    LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-                } else {
-                    timeouts_[client_fd] = time(nullptr);
-                    LOG_DEBUG("⏱️ Таймаут обновлён для client_fd={}: {}", client_fd, timeouts_[client_fd]);
-                }
-            } else if (bytes_read == 0) {
-                LOG_INFO("✅  ( 3 )  Полный запрос от клиента (0 байт):");
-                LOG_INFO("🔚 Клиент (client_fd={}) закрыл соединение (recv вернул 0)", client_fd);
+            if (!keep_alive) {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                LOG_INFO("TCP-соединение закрыто (блок 2):: клиент {}, backend_fd={}", client_fd, backend_fd);
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
             } else {
-                LOG_ERROR("❌ Ошибка чтения данных от клиента (client_fd={}): {}", client_fd, strerror(errno));
-                ::close(client_fd);
-                ::close(backend_fd);
-                connections_.erase(client_fd);
-                timeouts_.erase(client_fd);
+                timeouts_[client_fd] = time(nullptr);
+                LOG_DEBUG("⏱️ Таймаут обновлён для client_fd={}: {}", client_fd, timeouts_[client_fd]);
             }
         }
 
@@ -386,77 +332,66 @@ void Http1Server::handle_io_events() noexcept {
     }
 }
 
-bool Http1Server::forward_data(int from_fd, int to_fd, const std::string& request_str) noexcept {
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={}, request_str.size={})", from_fd, to_fd, request_str.size());
+bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
+    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={})", from_fd, to_fd);
 
-    // Парсим запрос
-    HttpRequest req = parse_http_request(request_str);
-
-    // Формируем новый запрос к серверу в России
-    std::string new_request = req.method + " " + req.url + " " + req.version + "\r\n";
-    for (const auto& [key, value] : req.headers) {
-        new_request += key + ": " + value + "\r\n";
-    }
-    new_request += "Connection: close\r\n"; // Закрываем соединение после ответа
-    new_request += "\r\n";
-    new_request += req.body;
-
-    // Отправляем запрос на сервер в России
-    ssize_t total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(new_request.size())) {
-        size_t remaining = static_cast<size_t>(new_request.size() - total_sent);
-        ssize_t bytes_sent = send(to_fd, new_request.c_str() + total_sent, remaining, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            } else {
-                LOG_ERROR("❌ Ошибка отправки запроса на сервер в России: {}", strerror(errno));
-                ::close(from_fd);
-                ::close(to_fd);
-                return false;
-            }
-        }
-        total_sent += bytes_sent;
-    }
-
-    // Получаем ответ от сервера в России
     char buffer[8192];
-    std::string response_str;
-    ssize_t bytes_read;
-    do {
-        bytes_read = recv(to_fd, buffer, sizeof(buffer), 0);
-        if (bytes_read > 0) {
-            response_str.append(buffer, bytes_read);
-        }
-    } while (bytes_read > 0);
+    LOG_DEBUG("📦 Буфер создан: размер {} байт", sizeof(buffer));
 
-    LOG_DEBUG("📥 Получен ответ от сервера в России: {}", response_str);
+    ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
+    LOG_DEBUG("📥 recv(from_fd={}, buffer_size={}) вернул bytes_read={}", from_fd, sizeof(buffer), bytes_read);
 
-    // Обработка HEAD-запроса
-    if (req.method == "HEAD") {
-        size_t body_start = response_str.find("\r\n\r\n");
-        if (body_start != std::string::npos) {
-            response_str = response_str.substr(0, body_start + 4); // Оставляем только заголовки
-        }
-    }
+    if (bytes_read > 0) {
+        LOG_INFO("✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
 
-    // Отправляем ответ клиенту
-    total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(response_str.size())) {
-        size_t remaining = static_cast<size_t>(response_str.size() - total_sent);
-        ssize_t bytes_sent = send(from_fd, response_str.c_str() + total_sent, remaining, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            } else {
-                LOG_ERROR("❌ Ошибка отправки ответа клиенту: {}", strerror(errno));
-                ::close(from_fd);
-                ::close(to_fd);
-                return false;
+        ssize_t total_sent = 0;
+        LOG_DEBUG("📌 total_sent инициализирован: {}", total_sent);
+
+        while (total_sent < bytes_read) {
+            size_t remaining = static_cast<size_t>(bytes_read - total_sent);
+            LOG_DEBUG("⏳ Осталось отправить {} байт (total_sent={}, bytes_read={})", remaining, total_sent, bytes_read);
+
+            ssize_t bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+            LOG_DEBUG("📤 send(to_fd={}, offset={}, size={}) вернул bytes_sent={}",
+                      to_fd, total_sent, remaining, bytes_sent);
+
+            if (bytes_sent < 0) {
+                LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
+                    return true;
+                } else {
+                    LOG_ERROR("💥 Критическая ошибка отправки данных: {}", strerror(errno));
+                    return false;
+                }
+            }
+
+            total_sent += bytes_sent;
+            LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
+
+            if (bytes_sent == 0) {
+                LOG_WARN("⚠️ send() вернул 0 — возможно, соединение закрыто на стороне получателя");
+                break;
             }
         }
-        total_sent += bytes_sent;
-    }
 
-    return true;
+        LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+        return true;
+
+    } else if (bytes_read == 0) {
+        LOG_INFO("🔚 Клиент (from_fd={}) закрыл соединение (recv вернул 0)", from_fd);
+        return false;
+
+    } else {
+        LOG_DEBUG("⏸️ recv() вернул -1: errno={} ({})", errno, strerror(errno));
+
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            LOG_DEBUG("🔁 recv() вернул EAGAIN/EWOULDBLOCK — это нормально в неблокирующем режиме");
+            return true;
+        } else {
+            LOG_ERROR("❌ Ошибка чтения данных от клиента (from_fd={}): {}", from_fd, strerror(errno));
+            return false;
+        }
+    }
 }
