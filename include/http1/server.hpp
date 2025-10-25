@@ -93,6 +93,13 @@ private:
     std::unordered_map<int, SSL*> ssl_connections_; ///< Карта: client_fd → SSL*
 
     // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
+        /**
+     * @brief Структура для хранения информации о соединении.
+     * @details Содержит:
+     *          - backend_fd: дескриптор сокета бэкенда.
+     *          - ssl: указатель на SSL-объект (nullptr, если нет TLS).
+     *          - handshake_done: true, если TLS handshake завершён.
+     */
   struct ConnectionInfo {
     int backend_fd;
     SSL* ssl;           // Может быть nullptr, если нет TLS
