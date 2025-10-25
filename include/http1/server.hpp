@@ -29,6 +29,8 @@
 #include <sys/select.h>
 #include <thread>
 #include "../logger/logger.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 /**
  * @brief Класс HTTP/1.1 сервера.
@@ -58,6 +60,9 @@ public:
     void stop();
 
 private:
+// 🟢 SSL-контекст и список SSL-соединений
+    SSL_CTX* ssl_ctx_;                  ///< SSL-контекст для TLS
+    std::unordered_map<int, SSL*> ssl_connections_; ///< Карта: client_fd → SSL*
     // 👇 Добавляем структуру для отслеживания незавершённых отправок
     struct PendingSend {
         int fd;           ///< Сокет назначения
