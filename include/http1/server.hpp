@@ -43,16 +43,6 @@ struct HttpRequest {
     std::string body;     ///< Тело запроса
 };
 
-/**
- * @brief Парсит HTTP-запрос из сырой строки.
- *
- * Разбирает первую строку запроса (метод, URL, версия) и заполняет структуру `HttpRequest`.
- * Заголовки и тело не парсятся в этой версии — только первая строка.
- *
- * @param request_str Сырой HTTP-запрос в виде строки.
- * @return Объект `HttpRequest` с заполненными полями.
- */
-HttpRequest parse_http_request(const std::string& request_str);
 
 /**
  * @brief Класс HTTP/1.1 сервера.
@@ -144,4 +134,15 @@ private:
      * @return Строка с JS-контентом.
      */
     [[nodiscard]] std::string generate_main_js() const;
+
+    /**
+     * @brief Парсит HTTP-запрос из сырой строки.
+     *
+     * Разбирает первую строку запроса (метод, URL, версия) и заполняет структуру `HttpRequest`.
+     * Заголовки и тело не парсятся в этой версии — только первая строка.
+     *
+     * @param request_str Сырой HTTP-запрос в виде строки.
+     * @return Объект `HttpRequest` с заполненными полями.
+     */
+    static HttpRequest parse_http_request(const std::string& request_str);
 };
