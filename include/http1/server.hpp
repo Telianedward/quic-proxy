@@ -93,7 +93,13 @@ private:
     std::unordered_map<int, SSL*> ssl_connections_; ///< Карта: client_fd → SSL*
 
     // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
-    std::unordered_map<int, int> connections_; ///< Карта активных соединений: client_fd -> backend_fd
+  struct ConnectionInfo {
+    int backend_fd;
+    SSL* ssl;           // Может быть nullptr, если нет TLS
+    bool handshake_done; // true, если handshake завершён
+};
+
+std::unordered_map<int, ConnectionInfo> connections_;
     std::unordered_map<int, time_t> timeouts_; ///< Карта таймаутов: client_fd -> время последней активности
 /**
  * @brief Создает и подключается к сокету сервера в России.
