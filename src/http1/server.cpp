@@ -191,7 +191,8 @@ bool Http1Server::set_nonblocking(int fd) noexcept {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
 
-int Http1Server::connect_to_backend() noexcept {
+// Метод connect_to_backend()
+int Http1Server::connect_to_backend() noexcept { // 👈 Это должно быть здесь
     int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (backend_fd < 0) {
         LOG_ERROR("Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
