@@ -338,7 +338,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     char buffer[8192];
     LOG_DEBUG("📦 Буфер создан: размер {} байт", sizeof(buffer));
 
-    ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
+    ssize_t bytes_read = recv(to_fd, buffer, sizeof(buffer), 0);
 
     LOG_DEBUG("📥 recv(from_fd={}, buffer_size={}) вернул bytes_read={}", from_fd, sizeof(buffer), bytes_read);
 
@@ -353,15 +353,17 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     }
 
     LOG_DEBUG("📥 Получено от бэкенда ({} байт):\n{}", bytes_read, received_data);
-        ssize_t total_sent = 0;
+
+
+    ssize_t total_sent = 0;
         LOG_DEBUG("📌 total_sent инициализирован: {}", total_sent);
 
         while (total_sent < bytes_read) {
             size_t remaining = static_cast<size_t>(bytes_read - total_sent);
             LOG_DEBUG("⏳ Осталось отправить {} байт (total_sent={}, bytes_read={})", remaining, total_sent, bytes_read);
 
-            ssize_t bytes_sent = send(from_fd, buffer + total_sent, remaining, 0);
-            LOG_DEBUG("📤 send(from_fd={}, offset={}, size={}) вернул bytes_sent={}",
+            ssize_t bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+            LOG_DEBUG("📤 send(to_fd={}, offset={}, size={}) вернул bytes_sent={}",
                       from_fd, total_sent, remaining, bytes_sent);
 
                 if (bytes_sent > 0) {
@@ -386,6 +388,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
                         return false;
                     }
                 }
+
+                ssize_t second_send = send(from_fd, buffer, bytes_read, 0);
+                    if (second_send < 0) {
+                        LOG_ERROR("❌ Второй send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+                    } else {
+                        LOG_DEBUG("✅ Второй send() отправил {} байт в from_fd={}", second_send, from_fd);
+                    }
 
             total_sent += bytes_sent;
             LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
