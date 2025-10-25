@@ -556,7 +556,7 @@ void Http1Server::handle_io_events() noexcept
         FD_SET(client_fd, &read_fds);
         FD_SET(backend_fd, &read_fds);
         int max_fd = std::max(client_fd, backend_fd);
-        timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000}; // 1 мс
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0)
         {
