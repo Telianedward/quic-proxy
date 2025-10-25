@@ -385,52 +385,6 @@ void Http1Server::handle_io_events() noexcept {
         }
     }
 }
-
-bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd=*) — без request_str", from_fd);
-
-    char buffer[8192];
-    std::string data;
-
-    // Получаем данные от источника
-    ssize_t bytes_read;
-    do {
-        bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
-        if (bytes_read > 0) {
-            data.append(buffer, bytes_read);
-        }
-    } while (bytes_read > 0);
-
-    if (data.empty()) {
-        LOG_WARN("⚠️ Получены пустые данные от fd={}", from_fd);
-        return false;
-    }
-
-    LOG_DEBUG("📥 Получено {} байт от fd={}", data.size(), from_fd);
-
-    // Отправляем данные получателю
-    ssize_t total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(data.size())) {
-        size_t remaining = static_cast<size_t>(data.size() - total_sent);
-        ssize_t bytes_sent = send(to_fd, data.c_str() + total_sent, remaining, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            } else {
-                LOG_ERROR("❌ Ошибка отправки данных на fd={}: {}", to_fd, strerror(errno));
-                ::close(from_fd);
-                ::close(to_fd);
-                return false;
-            }
-        }
-        total_sent += bytes_sent;
-    }
-
-    LOG_DEBUG("📤 Отправлено {} байт на fd={}", data.size(), to_fd);
-    return true;
-}
-
-// --- Реализация метода без request_str ---
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd=*) — без request_str", from_fd);
 
