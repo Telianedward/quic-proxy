@@ -497,32 +497,45 @@ void Http1Server::handle_new_connection() noexcept
     LOG_INFO("✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
 }
 
+/**
+ * @brief Обрабатывает события ввода-вывода для всех активных соединений.
+ *
+ * Проверяет, есть ли данные для чтения от клиентов или бэкенда,
+ * и передаёт их через forward_data. Также проверяет таймауты и закрывает неактивные соединения.
+ *
+ * @throws Никаких исключений — используется noexcept.
+ * @note Этот метод вызывается из main loop при событии select().
+ */
 void Http1Server::handle_io_events() noexcept
 {
+    // Создаём копию карты соединений — чтобы избежать модификации во время итерации
     auto connections_copy = connections_;
-       {
-        if (backend_fd == -1) {
-            LOG_WARN("Некорректный backend_fd (-1) для client_fd={}. Закрываем соединение.", client_fd);
-            ::close(client_fd);
-            connections_.erase(client_fd);
-            timeouts_.erase(client_fd);
-            continue;
-        }
+
+    // Итерируем по копии
+    for (const auto &conn : connections_copy)
+    {
+        int client_fd = conn.first;      // Дескриптор клиента
+        int backend_fd = conn.second;    // Дескриптор бэкенда
 
         // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
         bool is_ssl = ssl_connections_.find(client_fd) != ssl_connections_.end();
 
         // 🟠 ЕСЛИ СОЕДИНЕНИЕ НЕ ГОТОВО К ПЕРЕДАЧЕ ДАННЫХ (HANDSHAKE НЕ ЗАВЕРШЁН)
-        if (is_ssl && connections_.find(client_fd) == connections_.end()) {
+        if (is_ssl && connections_.find(client_fd) == connections_.end())
+        {
             // 🟢 ПОПЫТКА ЗАВЕРШИТЬ HANDSHAKE
             SSL* ssl = ssl_connections_[client_fd];
             int ssl_accept_result = SSL_accept(ssl);
-            if (ssl_accept_result <= 0) {
+            if (ssl_accept_result <= 0)
+            {
                 int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                {
                     LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
                     continue; // Ждём следующего цикла
-                } else {
+                }
+                else
+                {
                     LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
                     SSL_free(ssl);
                     ssl_connections_.erase(client_fd);
@@ -545,52 +558,62 @@ void Http1Server::handle_io_events() noexcept
         int max_fd = std::max(client_fd, backend_fd);
         timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-        if (activity <= 0) {
+        if (activity <= 0)
+        {
             continue;
         }
 
         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-        if (FD_ISSET(client_fd, &read_fds)) {
+        if (FD_ISSET(client_fd, &read_fds))
+        {
             LOG_INFO("📥 Получены данные от клиента {}", client_fd);
             LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, backend_fd);
 
             bool keep_alive = forward_data(client_fd, backend_fd);
 
-            if (!keep_alive) {
+            if (!keep_alive)
+            {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                if (is_ssl) {
+                if (is_ssl)
+                {
                     SSL_free(ssl_connections_[client_fd]);
                     ssl_connections_.erase(client_fd);
                 }
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-            } else {
+            }
+            else
+            {
                 timeouts_[client_fd] = time(nullptr);
             }
         }
 
         // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
-        if (FD_ISSET(backend_fd, &read_fds)) {
+        if (FD_ISSET(backend_fd, &read_fds))
+        {
             LOG_INFO("📤 Получены данные от сервера {}", backend_fd);
-            if (!forward_data(backend_fd, client_fd)) {
+            if (!forward_data(backend_fd, client_fd))
+            {
                 ::close(client_fd);
                 ::close(backend_fd);
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                if (is_ssl) {
+                if (is_ssl)
+                {
                     SSL_free(ssl_connections_[client_fd]);
                     ssl_connections_.erase(client_fd);
                 }
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-            } else {
+            }
+            else
+            {
                 timeouts_[client_fd] = time(nullptr);
             }
         }
     }
 }
-
 /**
  * @brief Передаёт данные между двумя сокетами (клиент ↔ бэкенд) в неблокирующем режиме, с поддержкой TLS.
  *
