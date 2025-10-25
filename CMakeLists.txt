@@ -35,7 +35,7 @@ find_package(fmt CONFIG REQUIRED)
 # Поиск и использование OpenSSL
 find_package(OpenSSL 3.0 REQUIRED)
 # Добавляем include-директории OpenSSL
-target_include_directories(quic_proxy PRIVATE ${OPENSSL_INCLUDE_DIR})
+# target_include_directories(quic_proxy PRIVATE ${OPENSSL_INCLUDE_DIR})
 
 # === Источники ===
 add_executable(quic_proxy
