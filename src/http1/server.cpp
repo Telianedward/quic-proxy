@@ -22,7 +22,7 @@
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
     : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port),
-      ssl_ctx_(nullptr) // 👈 Инициализируем nullptr
+      ssl_ctx_(nullptr)
 {
     // Инициализация OpenSSL
     SSL_library_init();
@@ -31,26 +31,38 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
 
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
-    if (!ssl_ctx_)
-    {
+    if (!ssl_ctx_) {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         return;
     }
 
-    // Загрузка сертификата и ключа
-    const char *cert_path = "/root/.acme.sh/erosj.com/fullchain.cer";
-    const char *key_path = "/root/.acme.sh/erosj.com/erosj.com.key";
+    // 🟢 ИСПОЛЬЗУЕМ ПОДГОТОВЛЕННЫЕ ФАЙЛЫ ИЗ /opt/quic-proxy/
+    const char* cert_path = "/opt/quic-proxy/fullchain.pem";
+    const char* key_path = "/opt/quic-proxy/privkey.pk8";
 
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0)
-    {
+    // 🟡 ПРОВЕРКА СУЩЕСТВОВАНИЯ ФАЙЛОВ
+    if (access(cert_path, R_OK) != 0) {
+        LOG_ERROR("❌ Сертификат не найден или недоступен: {}", cert_path);
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
+        return;
+    }
+    if (access(key_path, R_OK) != 0) {
+        LOG_ERROR("❌ Приватный ключ не найден или недоступен: {}", key_path);
+        SSL_CTX_free(ssl_ctx_);
+        ssl_ctx_ = nullptr;
+        return;
+    }
+
+    // Загрузка сертификата и ключа
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить сертификат: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0)
-    {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0) {
         LOG_ERROR("❌ Не удалось загрузить приватный ключ: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -58,8 +70,7 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     }
 
     // Проверка соответствия ключа и сертификата
-    if (!SSL_CTX_check_private_key(ssl_ctx_))
-    {
+    if (!SSL_CTX_check_private_key(ssl_ctx_)) {
         LOG_ERROR("❌ Ключ и сертификат не совпадают");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -68,6 +79,7 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
 
     LOG_INFO("✅ SSL-контекст успешно создан и настроен");
 }
+
 Http1Server::~Http1Server()
 {
     if (ssl_ctx_)
