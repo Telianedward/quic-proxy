@@ -26,9 +26,16 @@ set(CMAKE_BUILD_TYPE Release)
 
 # Добавляем флаги компиляции
 add_compile_options(-O2 -Wall -Wextra -Wpedantic)
+# ❗ Опционально: отключить предупреждение о порядке инициализации
+# add_compile_options(-Wno-reorder)
 
 # Поиск библиотеки fmt
 find_package(fmt CONFIG REQUIRED)
+
+# Поиск и использование OpenSSL
+find_package(OpenSSL 3.0 REQUIRED)
+# Добавляем include-директории OpenSSL
+target_include_directories(quic_proxy PRIVATE ${OPENSSL_INCLUDE_DIR})
 
 # === Источники ===
 add_executable(quic_proxy
@@ -40,9 +47,6 @@ add_executable(quic_proxy
     src/http1/server.cpp  # 👈 ДОБАВЛЕНО: файл HTTP/1.1 сервера
 )
 
-# Поиск и использование OpenSSL
-find_package(OpenSSL REQUIRED)
-
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
     pthread
@@ -50,3 +54,12 @@ target_link_libraries(quic_proxy PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
 )
+
+# Установка бинарника
+install(TARGETS quic_proxy
+    RUNTIME DESTINATION /usr/local/bin
+    COMPONENT runtime
+)
+
+# Установка сервиса systemd (если есть)
+# install(FILES quic-proxy.service DESTINATION /etc/systemd/system COMPONENT service)
