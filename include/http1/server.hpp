@@ -31,6 +31,30 @@
 #include "../logger/logger.h"
 
 /**
+ * @brief Структура для хранения разобранного HTTP-запроса.
+ *
+ * Содержит метод, URL, версию, заголовки и тело запроса.
+ */
+struct HttpRequest {
+    std::string method;   ///< Метод запроса (GET, POST и т.д.)
+    std::string url;      ///< URL запроса
+    std::string version;  ///< Версия HTTP (HTTP/1.1)
+    std::unordered_map<std::string, std::string> headers; ///< Заголовки запроса
+    std::string body;     ///< Тело запроса
+};
+
+/**
+ * @brief Парсит HTTP-запрос из сырой строки.
+ *
+ * Разбирает первую строку запроса (метод, URL, версия) и заполняет структуру `HttpRequest`.
+ * Заголовки и тело не парсятся в этой версии — только первая строка.
+ *
+ * @param request_str Сырой HTTP-запрос в виде строки.
+ * @return Объект `HttpRequest` с заполненными полями.
+ */
+HttpRequest parse_http_request(const std::string& request_str);
+
+/**
  * @brief Класс HTTP/1.1 сервера.
  *
  * Слушает входящие TCP-соединения на указанном порту и обрабатывает HTTP/1.1 запросы.
