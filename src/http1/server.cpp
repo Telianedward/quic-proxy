@@ -31,23 +31,26 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
 
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
-    if (!ssl_ctx_) {
+    if (!ssl_ctx_)
+    {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         return;
     }
 
     // 🟢 ИСПОЛЬЗУЕМ ПОДГОТОВЛЕННЫЕ ФАЙЛЫ ИЗ /opt/quic-proxy/
-    const char* cert_path = "/opt/quic-proxy/fullchain.pem";
-    const char* key_path = "/opt/quic-proxy/privkey.pk8";
+    const char *cert_path = "/opt/quic-proxy/fullchain.pem";
+    const char *key_path = "/opt/quic-proxy/privkey.pk8";
 
     // 🟡 ПРОВЕРКА СУЩЕСТВОВАНИЯ ФАЙЛОВ
-    if (access(cert_path, R_OK) != 0) {
+    if (access(cert_path, R_OK) != 0)
+    {
         LOG_ERROR("❌ Сертификат не найден или недоступен: {}", cert_path);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (access(key_path, R_OK) != 0) {
+    if (access(key_path, R_OK) != 0)
+    {
         LOG_ERROR("❌ Приватный ключ не найден или недоступен: {}", key_path);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -55,14 +58,16 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     }
 
     // Загрузка сертификата и ключа
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0)
+    {
         LOG_ERROR("❌ Не удалось загрузить сертификат: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0)
+    {
         LOG_ERROR("❌ Не удалось загрузить приватный ключ: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -70,7 +75,8 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     }
 
     // Проверка соответствия ключа и сертификата
-    if (!SSL_CTX_check_private_key(ssl_ctx_)) {
+    if (!SSL_CTX_check_private_key(ssl_ctx_))
+    {
         LOG_ERROR("❌ Ключ и сертификат не совпадают");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -438,28 +444,42 @@ void Http1Server::handle_new_connection() noexcept
      */
     SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
-    // 🟢 СОХРАНЕНИЕ SSL-ОБЪЕКТА В КАРТЕ
+    // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
     /**
-     * @brief Карта активных SSL-соединений: client_fd → SSL*.
-     * @details Используется для последующей расшифровки данных от клиента.
+     * @brief Запускает TLS handshake для нового соединения.
+     * @details SSL_accept() — функция OpenSSL для установления защищённого соединения.
+     *          Возвращает:
+     *          - 1: handshake успешно завершён.
+     *          - 0: соединение закрыто.
+     *          - <0: ошибка (SSL_get_error() показывает причину).
+     * @note В неблокирующем режиме может вернуть SSL_ERROR_WANT_READ/WRITE — нужно повторить.
      */
-    ssl_connections_[client_fd] = ssl;
-
-    // 🟠 ПОДКЛЮЧЕНИЕ К БЭКЕНДУ В РОССИИ
-    /**
-     * @brief Дескриптор сокета, подключённого к бэкенд-серверу в России.
-     * @details Создаётся с помощью connect_to_backend(). Если == -1 — подключение не удалось.
-     *          В этом случае соединение с клиентом закрывается без добавления в connections_.
-     */
-    int backend_fd = connect_to_backend();
-    if (backend_fd == -1)
+    int ssl_accept_result = SSL_accept(ssl);
+    if (ssl_accept_result <= 0)
     {
-        LOG_ERROR("❌ Не удалось подключиться к серверу в России. Закрываем соединение с клиентом.");
-        ::close(client_fd);
-        SSL_free(ssl); // 👈 Очищаем SSL-объект
-        ssl_connections_.erase(client_fd);
-        return; // ❗ ВАЖНО: НЕ ДОБАВЛЯТЬ В connections_!
+        int ssl_error = SSL_get_error(ssl, ssl_accept_result);
+        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+        {
+            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+            // Сохраняем SSL-объект, но не помечаем как готовый — будем ждать в handle_io_events
+            ssl_connections_[client_fd] = ssl;
+            // Не добавляем в connections_ — пока handshake не завершён
+            return;
+        }
+        else
+        {
+            LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+            SSL_free(ssl);
+            ::close(client_fd);
+            return;
+        }
     }
+
+    // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
+    LOG_INFO("✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
+
+    // Сохраняем SSL-объект
+    ssl_connections_[client_fd] = ssl;
 
     // 🟢 СОХРАНЕНИЕ ПАРЫ СОЕДИНЕНИЙ
     /**
@@ -482,70 +502,82 @@ void Http1Server::handle_io_events() noexcept
 {
     auto connections_copy = connections_;
     for (const auto &[client_fd, backend_fd] : connections_copy)
-{
-    if (backend_fd == -1) {
-        LOG_WARN("Некорректный backend_fd (-1) для client_fd={}. Закрываем соединение.", client_fd);
-        ::close(client_fd);
-        connections_.erase(client_fd);
-        timeouts_.erase(client_fd);
-        continue;
-    }
-
-    // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
-    bool is_ssl = ssl_connections_.find(client_fd) != ssl_connections_.end();
-
-    fd_set read_fds, write_fds;
-    FD_ZERO(&read_fds);
-    FD_ZERO(&write_fds);
-    FD_SET(client_fd, &read_fds);
-    FD_SET(backend_fd, &read_fds);
-    int max_fd = std::max(client_fd, backend_fd);
-    timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
-    int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-    if (activity <= 0) {
-        continue;
-    }
-
-    // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-    if (FD_ISSET(client_fd, &read_fds)) {
-        LOG_INFO("📥 Получены данные от клиента {}", client_fd);
-        LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, backend_fd);
-
-        bool keep_alive = forward_data(client_fd, backend_fd);
-
-        if (!keep_alive) {
+    {
+        if (backend_fd == -1)
+        {
+            LOG_WARN("Некорректный backend_fd (-1) для client_fd={}. Закрываем соединение.", client_fd);
             ::close(client_fd);
-            ::close(backend_fd);
             connections_.erase(client_fd);
             timeouts_.erase(client_fd);
-            if (is_ssl) {
-                SSL_free(ssl_connections_[client_fd]);
-                ssl_connections_.erase(client_fd);
-            }
-            LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-        } else {
-            timeouts_[client_fd] = time(nullptr);
+            continue;
         }
-    }
 
-    // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
-    if (FD_ISSET(backend_fd, &read_fds)) {
-        LOG_INFO("📤 Получены данные от сервера {}", backend_fd);
-        if (!forward_data(backend_fd, client_fd)) {
-            ::close(client_fd);
-            ::close(backend_fd);
-            connections_.erase(client_fd);
-            timeouts_.erase(client_fd);
-            if (is_ssl) {
-                SSL_free(ssl_connections_[client_fd]);
-                ssl_connections_.erase(client_fd);
+        // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
+        bool is_ssl = ssl_connections_.find(client_fd) != ssl_connections_.end();
+
+        fd_set read_fds, write_fds;
+        FD_ZERO(&read_fds);
+        FD_ZERO(&write_fds);
+        FD_SET(client_fd, &read_fds);
+        FD_SET(backend_fd, &read_fds);
+        int max_fd = std::max(client_fd, backend_fd);
+        timeval timeout{.tv_sec = 0, .tv_usec = 10000}; // 10 мс
+        int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
+        if (activity <= 0)
+        {
+            continue;
+        }
+
+        // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+        if (FD_ISSET(client_fd, &read_fds))
+        {
+            LOG_INFO("📥 Получены данные от клиента {}", client_fd);
+            LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, backend_fd);
+
+            bool keep_alive = forward_data(client_fd, backend_fd);
+
+            if (!keep_alive)
+            {
+                ::close(client_fd);
+                ::close(backend_fd);
+                connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
+                if (is_ssl)
+                {
+                    SSL_free(ssl_connections_[client_fd]);
+                    ssl_connections_.erase(client_fd);
+                }
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
             }
-            LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
-        } else {
-            timeouts_[client_fd] = time(nullptr);
+            else
+            {
+                timeouts_[client_fd] = time(nullptr);
+            }
+        }
+
+        // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
+        if (FD_ISSET(backend_fd, &read_fds))
+        {
+            LOG_INFO("📤 Получены данные от сервера {}", backend_fd);
+            if (!forward_data(backend_fd, client_fd))
+            {
+                ::close(client_fd);
+                ::close(backend_fd);
+                connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
+                if (is_ssl)
+                {
+                    SSL_free(ssl_connections_[client_fd]);
+                    ssl_connections_.erase(client_fd);
+                }
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, backend_fd);
+            }
+            else
+            {
+                timeouts_[client_fd] = time(nullptr);
+            }
         }
     }
-}
 }
 
 /**
