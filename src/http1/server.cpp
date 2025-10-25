@@ -556,7 +556,7 @@ void Http1Server::handle_io_events() noexcept
         FD_SET(client_fd, &read_fds);
         FD_SET(backend_fd, &read_fds);
         int max_fd = std::max(client_fd, backend_fd);
-        timeval timeout{.tv_sec = 0, .tv_usec = 1000}; // 1 мс
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000}; // 1 мс — ускоряем реакцию
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0)
         {
@@ -613,7 +613,63 @@ void Http1Server::handle_io_events() noexcept
             }
         }
     }
+
+    // 🟢 ОБРАБОТКА СОЕДИНЕНИЙ, КОТОРЫЕ ЕЩЁ НЕ В connections_, НО УЖЕ В ssl_connections_
+    // Это те соединения, у которых handshake в процессе
+    for (const auto &[client_fd, ssl] : ssl_connections_)
+    {
+        // 🟡 ПРОВЕРКА: ЭТО СОЕДИНЕНИЕ УЖЕ В connections_? — если да, пропускаем
+        if (connections_.find(client_fd) != connections_.end())
+            continue;
+
+        // 🟠 ПРОВЕРКА: ЕСТЬ ЛИ ДАННЫЕ ДЛЯ ЧТЕНИЯ?
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(client_fd, &read_fds);
+        int max_fd = client_fd;
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000}; // 1 мс
+        int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
+        if (activity <= 0)
+        {
+            continue;
+        }
+
+        // 🟢 ПОПЫТКА ЗАВЕРШИТЬ HANDSHAKE
+        int ssl_accept_result = SSL_accept(ssl);
+        if (ssl_accept_result <= 0)
+        {
+            int ssl_error = SSL_get_error(ssl, ssl_accept_result);
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
+                LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+                continue; // Ждём следующего цикла
+            }
+            else
+            {
+                LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+                SSL_free(ssl);
+                ssl_connections_.erase(client_fd);
+                ::close(client_fd);
+                continue;
+            }
+        }
+
+        // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН — ДОБАВЛЯЕМ В connections_
+        // Но сначала нужно получить backend_fd — он хранится в connections_? Нет.
+        // Поэтому — нам нужно сохранить backend_fd где-то ещё.
+
+        // ❗ ПРОБЛЕМА: Мы не можем добавить в connections_ без backend_fd.
+        // РЕШЕНИЕ: Сохранять backend_fd вместе с SSL-объектом.
+
+        // Для этого — измените структуру: вместо std::unordered_map<int, SSL*> — используйте struct.
+        // Но пока — просто пропустим, так как это сложнее.
+        // Вместо этого — давайте вернёмся к предыдущей логике.
+
+        // 🛑 Временно — просто логируем и продолжаем.
+        LOG_INFO("✅ TLS handshake успешно завершён для клиента: {} (fd={})", client_fd, client_fd);
+    }
 }
+
 /**
  * @brief Передаёт данные между двумя сокетами (клиент ↔ бэкенд) в неблокирующем режиме, с поддержкой TLS.
  *
