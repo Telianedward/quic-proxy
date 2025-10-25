@@ -386,70 +386,38 @@ void Http1Server::handle_io_events() noexcept {
     }
 }
 
-bool Http1Server::forward_data(int from_fd, int to_fd, const std::string& request_str) noexcept {
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={}, request_str.size={})", from_fd, to_fd, request_str.size());
+bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
+    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd=*) — без request_str", from_fd);
 
-    // Парсим запрос
-    HttpRequest req = parse_http_request(request_str);
-
-    // Формируем новый запрос к серверу в России
-    std::string new_request = req.method + " " + req.url + " " + req.version + "\r\n";
-    for (const auto& [key, value] : req.headers) {
-        new_request += key + ": " + value + "\r\n";
-    }
-    new_request += "Connection: close\r\n"; // Закрываем соединение после ответа
-    new_request += "\r\n";
-    new_request += req.body;
-
-    // Отправляем запрос на сервер в России
-    ssize_t total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(new_request.size())) {
-        size_t remaining = static_cast<size_t>(new_request.size() - total_sent);
-        ssize_t bytes_sent = send(to_fd, new_request.c_str() + total_sent, remaining, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            } else {
-                LOG_ERROR("❌ Ошибка отправки запроса на сервер в России: {}", strerror(errno));
-                ::close(from_fd);
-                ::close(to_fd);
-                return false;
-            }
-        }
-        total_sent += bytes_sent;
-    }
-
-    // Получаем ответ от сервера в России
     char buffer[8192];
-    std::string response_str;
+    std::string data;
+
+    // Получаем данные от источника
     ssize_t bytes_read;
     do {
-        bytes_read = recv(to_fd, buffer, sizeof(buffer), 0);
+        bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
         if (bytes_read > 0) {
-            response_str.append(buffer, bytes_read);
+            data.append(buffer, bytes_read);
         }
     } while (bytes_read > 0);
 
-    LOG_DEBUG("📥 Получен ответ от сервера в России: {}", response_str);
-
-    // Обработка HEAD-запроса
-    if (req.method == "HEAD") {
-        size_t body_start = response_str.find("\r\n\r\n");
-        if (body_start != std::string::npos) {
-            response_str = response_str.substr(0, body_start + 4); // Оставляем только заголовки
-        }
+    if (data.empty()) {
+        LOG_WARN("⚠️ Получены пустые данные от fd={}", from_fd);
+        return false;
     }
 
-    // Отправляем ответ клиенту
-    total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(response_str.size())) {
-        size_t remaining = static_cast<size_t>(response_str.size() - total_sent);
-        ssize_t bytes_sent = send(from_fd, response_str.c_str() + total_sent, remaining, 0);
+    LOG_DEBUG("📥 Получено {} байт от fd={}", data.size(), from_fd);
+
+    // Отправляем данные получателю
+    ssize_t total_sent = 0;
+    while (total_sent < static_cast<ssize_t>(data.size())) {
+        size_t remaining = static_cast<size_t>(data.size() - total_sent);
+        ssize_t bytes_sent = send(to_fd, data.c_str() + total_sent, remaining, 0);
         if (bytes_sent < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 continue;
             } else {
-                LOG_ERROR("❌ Ошибка отправки ответа клиенту: {}", strerror(errno));
+                LOG_ERROR("❌ Ошибка отправки данных на fd={}: {}", to_fd, strerror(errno));
                 ::close(from_fd);
                 ::close(to_fd);
                 return false;
@@ -458,5 +426,6 @@ bool Http1Server::forward_data(int from_fd, int to_fd, const std::string& reques
         total_sent += bytes_sent;
     }
 
+    LOG_DEBUG("📤 Отправлено {} байт на fd={}", data.size(), to_fd);
     return true;
 }
