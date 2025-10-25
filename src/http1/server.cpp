@@ -20,6 +20,7 @@
 
 // === Реализация методов класса Http1Server ===
 
+// Конструктор
 Http1Server::Http1Server(int port, const std::string& backend_ip, int backend_port)
     : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port) {}
 
