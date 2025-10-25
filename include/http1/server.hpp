@@ -48,6 +48,13 @@ public:
      */
     explicit Http1Server(int port = 8587, const std::string& backend_ip = "10.8.0.11", int backend_port = 8587);
 
+        /**
+     * @brief Деструктор класса Http1Server.
+     *
+     * Освобождает ресурсы: SSL-контекст, SSL-соединения.
+     */
+    ~Http1Server();
+
     /**
      * @brief Запускает HTTP/1.1 сервер.
      * @return true при успешном завершении, false при ошибке.
