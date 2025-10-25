@@ -389,12 +389,12 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
                     }
                 }
 
-                ssize_t second_send = send(from_fd, buffer, bytes_read, 0);
-                    if (second_send < 0) {
-                        LOG_ERROR("❌ Второй send() вернул ошибку: errno={} ({})", errno, strerror(errno));
-                    } else {
-                        LOG_DEBUG("✅ Второй send() отправил {} байт в from_fd={}", second_send, from_fd);
-                    }
+                // ssize_t second_send = send(from_fd, buffer, bytes_read, 0);
+                //     if (second_send < 0) {
+                //         LOG_ERROR("❌ Второй send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+                //     } else {
+                //         LOG_DEBUG("✅ Второй send() отправил {} байт в from_fd={}", second_send, from_fd);
+                //     }
 
             total_sent += bytes_sent;
             LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
