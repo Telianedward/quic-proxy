@@ -339,6 +339,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
     LOG_DEBUG("📦 Буфер создан: размер {} байт", sizeof(buffer));
 
     ssize_t bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
+
     LOG_DEBUG("📥 recv(from_fd={}, buffer_size={}) вернул bytes_read={}", from_fd, sizeof(buffer), bytes_read);
 
     if (bytes_read > 0) {
@@ -351,21 +352,32 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
             size_t remaining = static_cast<size_t>(bytes_read - total_sent);
             LOG_DEBUG("⏳ Осталось отправить {} байт (total_sent={}, bytes_read={})", remaining, total_sent, bytes_read);
 
-            ssize_t bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
-            LOG_DEBUG("📤 send(to_fd={}, offset={}, size={}) вернул bytes_sent={}",
-                      to_fd, total_sent, remaining, bytes_sent);
+            ssize_t bytes_sent = send(from_fd, buffer + total_sent, remaining, 0);
+            LOG_DEBUG("📤 send(from_fd={}, offset={}, size={}) вернул bytes_sent={}",
+                      from_fd, total_sent, remaining, bytes_sent);
 
-            if (bytes_sent < 0) {
-                LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
-
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
-                    return true;
-                } else {
-                    LOG_ERROR("💥 Критическая ошибка отправки данных: {}", strerror(errno));
-                    return false;
+                if (bytes_sent > 0) {
+                    std::string sent_chunk(buffer + total_sent, static_cast<size_t>(bytes_sent));
+                    // Убираем непечатаемые символы для читаемости (опционально)
+                    for (char& c : sent_chunk) {
+                        if (c < 32 && c != '\n' && c != '\r' && c != '\t') c = '?';
+                    }
+                    LOG_DEBUG("📦 Отправлено содержимое (первые {} байт):\n{}",
+                            std::min<size_t>(bytes_sent, sent_chunk.size()),
+                            sent_chunk.substr(0, std::min<size_t>(bytes_sent, sent_chunk.size())));
                 }
-            }
+                if (bytes_sent < 0)
+                {
+                    LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
+                        return true;
+                    } else {
+                        LOG_ERROR("💥 Критическая ошибка отправки данных: {}", strerror(errno));
+                        return false;
+                    }
+                }
 
             total_sent += bytes_sent;
             LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
