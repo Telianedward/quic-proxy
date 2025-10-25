@@ -17,27 +17,11 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-#include <csignal>
+
 // === Реализация методов класса Http1Server ===
 
-// Конструктор
-Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
-    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port)
-{
-    std::atomic<bool> should_stop{false};
-    signal(SIGTERM, [](int)
-           {
-               LOG_INFO("Получен SIGTERM — останавливаем сервер...");
-               // Если есть доступ к экземпляру сервера — вызвать stop()
-               // Например, через глобальную переменную или singleton
-           });
-    // Перед server.run():
-    while (!should_stop)
-    {
-        if (!server.run())
-            break;
-    }
-}
+Http1Server::Http1Server(int port, const std::string& backend_ip, int backend_port)
+    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port) {}
 
 // 👇 Сделали parse_http_request статическим методом класса
 HttpRequest Http1Server::parse_http_request(const std::string& request_str) {
@@ -348,11 +332,12 @@ void Http1Server::handle_io_events() noexcept {
             if (bytes_read > 0) {
                 std::string request_str(buffer, bytes_read); // 👈 Объявление переменной
                 LOG_INFO("✅  ( 2 )  Полный запрос от клиента ({} байт):", bytes_read);
-            if (!request_str.empty()) {
-                LOG_DEBUG("📝 Содержимое запроса:\n{}", request_str);
-            } else {
-                LOG_DEBUG("📝 Запрос пустой");
-            }
+                if (!request_str.empty()) {
+                    LOG_DEBUG("📝 Содержимое запроса:
+{}", request_str);
+                } else {
+                    LOG_DEBUG("📝 Запрос пустой");
+                }
 
                 // 👇 Передаём request_str в forward_data
                 bool keep_alive = forward_data(client_fd, backend_fd, request_str);
@@ -400,6 +385,7 @@ void Http1Server::handle_io_events() noexcept {
         }
     }
 }
+
 bool Http1Server::forward_data(int from_fd, int to_fd, const std::string& request_str) noexcept {
     LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={}, request_str.size={})", from_fd, to_fd, request_str.size());
 
@@ -472,48 +458,5 @@ bool Http1Server::forward_data(int from_fd, int to_fd, const std::string& reques
         total_sent += bytes_sent;
     }
 
-    return true;
-}
-bool Http1Server::forward_data(int from_fd, int to_fd) noexcept {
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd=*) — без request_str", from_fd);
-
-    char buffer[8192];
-    std::string data;
-
-    // Получаем данные от источника (бэкенд)
-    ssize_t bytes_read;
-    do {
-        bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
-        if (bytes_read > 0) {
-            data.append(buffer, bytes_read);
-        }
-    } while (bytes_read > 0);
-
-    if (data.empty()) {
-        LOG_WARN("⚠️ Получены пустые данные от fd={}", from_fd);
-        return false;
-    }
-
-    LOG_DEBUG("📥 Получено {} байт от fd={}", data.size(), from_fd);
-
-    // Отправляем данные получателю (клиент)
-    ssize_t total_sent = 0;
-    while (total_sent < static_cast<ssize_t>(data.size())) {
-        size_t remaining = static_cast<size_t>(data.size() - total_sent);
-        ssize_t bytes_sent = send(to_fd, data.c_str() + total_sent, remaining, 0);
-        if (bytes_sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            } else {
-                LOG_ERROR("❌ Ошибка отправки данных на fd={}: {}", to_fd, strerror(errno));
-                ::close(from_fd);
-                ::close(to_fd);
-                return false;
-            }
-        }
-        total_sent += bytes_sent;
-    }
-
-    LOG_DEBUG("📤 Отправлено {} байт на fd={}", data.size(), to_fd);
     return true;
 }
