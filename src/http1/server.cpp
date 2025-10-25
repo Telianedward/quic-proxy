@@ -17,12 +17,27 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-
+#include <csignal>
 // === Реализация методов класса Http1Server ===
 
 // Конструктор
-Http1Server::Http1Server(int port, const std::string& backend_ip, int backend_port)
-    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port) {}
+Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
+    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port)
+{
+    std::atomic<bool> should_stop{false};
+    signal(SIGTERM, [](int)
+           {
+               LOG_INFO("Получен SIGTERM — останавливаем сервер...");
+               // Если есть доступ к экземпляру сервера — вызвать stop()
+               // Например, через глобальную переменную или singleton
+           });
+    // Перед server.run():
+    while (!should_stop)
+    {
+        if (!server.run())
+            break;
+    }
+}
 
 // 👇 Сделали parse_http_request статическим методом класса
 HttpRequest Http1Server::parse_http_request(const std::string& request_str) {
