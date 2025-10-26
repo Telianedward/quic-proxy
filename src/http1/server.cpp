@@ -656,7 +656,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         LOG_DEBUG("[server.cpp:479] 🟢 Начало чтения данных через SSL для client_fd={}", from_fd);
 
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
-        if (bytes_read <= 0)
+      if (bytes_read <= 0)
         {
             int ssl_error = SSL_get_error(ssl, bytes_read);
             LOG_DEBUG("[server.cpp:483] 🔴 SSL_read вернул {} байт. Код ошибки: {}", bytes_read, ssl_error);
@@ -667,9 +667,16 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                         SSL_state_string_long(ssl));
                 return true;
             }
+            else if (bytes_read == 0)
+            {
+                // 👇 Соединение закрыто удалённой стороной — нормальное завершение
+                LOG_INFO("[server.cpp:495] 🔚 Клиент (from_fd={}) закрыл соединение", from_fd);
+                return false;
+            }
             else
             {
-                LOG_ERROR("[server.cpp:490] ❌ Критическая ошибка SSL_read: {} (код ошибки: {})",
+                // 👇 Любая другая ошибка — критическая
+                LOG_ERROR("[server.cpp:500] ❌ Критическая ошибка SSL_read: {} (код ошибки: {})",
                         ERR_error_string(ERR_get_error(), nullptr), ssl_error);
                 return false;
             }
