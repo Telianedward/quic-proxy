@@ -14,7 +14,7 @@
  */
 
 #include "include/http3/quic_udp_proxy.hpp"
-#include "include/http2/tcp_proxy.hpp"
+#include "include/http2/server.hpp"
 #include "include/http1/server.hpp"
 #include "include/logger/logger.h"
 #include <thread>
@@ -42,12 +42,15 @@ int main() {
         const std::string backend_ip = "10.8.0.11"; // IP сервера в России через WireGuard
         // const int backend_http3_port = 8585; // Порт H3-сервера в РФ
         // const int backend_http2_port = 8586;
+          const int http2_port = 8586; // 👈 Порт для HTTP/2 сервера
         const int backend_http1_port = 8587; // 👈 Порт HTTP/1.1 сервера в РФ (внутренний)
 
         // 🚀 Создание и запуск серверов
         // QuicUdpProxy quic_proxy(http3_port, backend_ip, backend_http3_port);
         // TcpProxy tcp_proxy(http2_port, backend_ip, backend_http2_port);
       Http1Server http1_server(http1_port, backend_ip, backend_http1_port); // 👈 Передаём backend_ip и backend_http1_port
+      Http2Server http2_server(http2_port, backend_ip, backend_http1_port); // 👈 Передаём backend_ip и backend_http1_port
+
 
         // // Запуск QUIC-UDP прокси
         // std::thread quic_thread([http3_port, &quic_proxy]() {
@@ -76,6 +79,14 @@ int main() {
             }
         });
 
+            // Запуск HTTP/2 сервера
+        std::thread http2_thread([http2_port, &http2_server]() {
+            LOG_INFO("🚀 HTTP/2 сервер запущен на порту {}", http2_port);
+            if (!http2_server.run()) {
+                LOG_ERROR("❌ HTTP/2 сервер завершился с ошибкой");
+                std::exit(EXIT_FAILURE);
+            }
+        });
         // Регистрация обработчика сигналов
         std::signal(SIGINT, signal_handler);
         std::signal(SIGTERM, signal_handler);
@@ -84,7 +95,7 @@ int main() {
         // quic_thread.join();
         // tcp_thread.join();
         http1_thread.join();
-
+        http2_thread.join(); // 👈 Добавляем join для HTTP/2 сервера
         LOG_INFO("✅ Все серверы успешно запущены и работают.");
     }
     catch (const std::invalid_argument &e) {
