@@ -95,7 +95,7 @@ int main() {
         // quic_thread.join();
         // tcp_thread.join();
         http1_thread.join();
-        http2_thread.join(); // 👈 Добавляем join для HTTP/2 сервера
+       // http2_thread.join(); // 👈 Добавляем join для HTTP/2 сервера
         LOG_INFO("✅ Все серверы успешно запущены и работают.");
     }
     catch (const std::invalid_argument &e) {
