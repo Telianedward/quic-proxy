@@ -553,11 +553,11 @@ void Http1Server::handle_io_events() noexcept
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
                 if (is_ssl && info.ssl)
                 {
-                    // Проверяем, можно ли вызвать SSL_shutdown()
-                    int ssl_state = SSL_get_state(info.ssl);
-                    if (ssl_state != SSL_ST_OK && ssl_state != SSL_ST_BEFORE)
+                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
+                    int shutdown_state = SSL_get_shutdown(info.ssl);
+                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
                     {
-                        LOG_DEBUG("[server.cpp:575] 🟡 Состояние SSL не позволяет вызвать SSL_shutdown(). Пропускаем.");
+                        LOG_DEBUG("[server.cpp:575] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
                     }
                     else
                     {
@@ -566,7 +566,7 @@ void Http1Server::handle_io_events() noexcept
                         if (shutdown_result < 0)
                         {
                             LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
-                                     ERR_error_string(ERR_get_error(), nullptr));
+                                    ERR_error_string(ERR_get_error(), nullptr));
                         }
                         else
                         {
