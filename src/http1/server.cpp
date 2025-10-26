@@ -452,6 +452,7 @@ void Http1Server::handle_io_events() noexcept
         bool is_ssl = info.ssl != nullptr;
 
             // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
+               // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
         if (is_ssl && !info.handshake_done)
         {
             int ssl_accept_result = SSL_accept(info.ssl);
@@ -462,6 +463,36 @@ void Http1Server::handle_io_events() noexcept
                 {
                     // 🟡 ЛОГИРОВАНИЕ ТЕКУЩЕГО СОСТОЯНИЯ SSL
                     LOG_DEBUG("🔒 SSL state: {}", SSL_state_string_long(info.ssl));
+
+                    // 🟢 ПОПЫТКА ПРОЧИТАТЬ ClientHello (если есть данные)
+                    char client_hello[8192];
+                    int bytes_read = SSL_read(info.ssl, client_hello, sizeof(client_hello));
+                    if (bytes_read > 0)
+                    {
+                        // 🟣 ЛОГИРОВАНИЕ ClientHello
+                        LOG_INFO("📋 ClientHello от клиента {}:\n{}", client_fd, std::string(client_hello, bytes_read).substr(0, 512));
+                    }
+                    else if (bytes_read == 0)
+                    {
+                        LOG_WARN("⚠️ Клиент {} закрыл соединение во время handshake", client_fd);
+                        SSL_free(info.ssl);
+                        connections_.erase(client_fd);
+                        ::close(client_fd);
+                        continue;
+                    }
+                    else
+                    {
+                        int ssl_error_after_read = SSL_get_error(info.ssl, bytes_read);
+                        if (ssl_error_after_read != SSL_ERROR_WANT_READ && ssl_error_after_read != SSL_ERROR_WANT_WRITE)
+                        {
+                            LOG_ERROR("❌ Ошибка чтения ClientHello: {}", ERR_error_string(ERR_get_error(), nullptr));
+                            SSL_free(info.ssl);
+                            connections_.erase(client_fd);
+                            ::close(client_fd);
+                            continue;
+                        }
+                    }
+
                     LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
                     continue; // Ждём следующего цикла
                 }
