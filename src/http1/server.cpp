@@ -377,41 +377,61 @@ void Http1Server::handle_new_connection() noexcept
     }
 
     // 🟢 СОЗДАНИЕ SSL-ОБЪЕКТА ДЛЯ TLS-ШИФРОВАНИЯ
-    SSL *ssl = SSL_new(ssl_ctx_);
-    if (!ssl)
-    {
-        LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
-        ::close(client_fd);
-        return;
-    }
-
-    // 🟠 ПРИВЯЗКА SSL К СОКЕТУ
-    SSL_set_fd(ssl, client_fd);
-
-    // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА ДЛЯ SSL
-    SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-
-    // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
-    int ssl_accept_result = SSL_accept(ssl);
-    if (ssl_accept_result <= 0)
-    {
-        int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+        SSL *ssl = SSL_new(ssl_ctx_);
+        if (!ssl)
         {
-            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
-            // Сохраняем SSL-объект, но не помечаем как готовый — будем ждать в handle_io_events
-            ssl_connections_[client_fd] = ssl;
-            // Не добавляем в connections_ — пока handshake не завершён
-            return;
-        }
-        else
-        {
-            LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
-            SSL_free(ssl);
+            LOG_ERROR("[server.cpp:345] ❌ Не удалось создать SSL-объект для клиента");
             ::close(client_fd);
             return;
         }
-    }
+
+        // 🟠 ПРИВЯЗКА SSL К СОКЕТУ
+        SSL_set_fd(ssl, client_fd);
+
+        // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА ДЛЯ SSL
+        SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+
+        // 🟢 ДОБАВЛЯЕМ СОЕДИНЕНИЕ В connections_ ДАЖЕ ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН
+        ConnectionInfo info;
+        info.backend_fd = backend_fd;
+        info.ssl = ssl;
+        info.handshake_done = false; // 👈 Пока не завершён
+        connections_[client_fd] = info;
+
+        // 🟢 УСТАНАВЛИВАЕМ ТАЙМАУТ
+        timeouts_[client_fd] = time(nullptr);
+
+        LOG_INFO("[server.cpp:365] ✅ TLS-соединение создано, но handshake не завершён. Ожидаем данные для продолжения.");
+
+        // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
+        int ssl_accept_result = SSL_accept(ssl);
+        if (ssl_accept_result <= 0)
+        {
+            int ssl_error = SSL_get_error(ssl, ssl_accept_result);
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
+                LOG_DEBUG("[server.cpp:379] ⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE). Соединение оставлено в connections_ для дальнейшей обработки.");
+                // Сохраняем SSL-объект — он уже в connections_
+                return;
+            }
+            else
+            {
+                LOG_ERROR("[server.cpp:384] ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+                SSL_free(ssl);
+                connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
+                ::close(client_fd);
+                return;
+            }
+        }
+
+        // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
+        LOG_INFO("[server.cpp:391] ✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})",
+                client_ip_str, client_port_num, client_fd);
+
+        // Обновляем информацию — помечаем handshake как завершённый
+        info.handshake_done = true;
+        connections_[client_fd] = info;
 
     // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
     LOG_INFO("✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
