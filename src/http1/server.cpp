@@ -864,7 +864,27 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
             // ❗ ВАЖНО: Мы не отправляем через SSL на бэкенд — только клиент → сервер.
             // Для бэкенда используем обычный send().
-            bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+            ssize_t bytes_sent = 0;
+            if (use_ssl && to_fd == client_fd) { // 👈 Если назначение — клиент с TLS
+                bytes_sent = SSL_write(ssl, buffer + total_sent, remaining);
+                if (bytes_sent <= 0) {
+                    int ssl_error = SSL_get_error(ssl, bytes_sent);
+                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                        LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                        return true; // Ожидаем следующего цикла
+                    } else {
+                        LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
+                        return false;
+                    }
+                }
+            } else {
+                // Обычная отправка (бэкенд → клиент без TLS, или клиент → бэкенд)
+                bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+                if (bytes_sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                    return false;
+                }
+            }
 
             // 🟡 ОБРАБОТКА УСПЕШНОЙ ОТПРАВКИ (bytes_sent > 0)
             if (bytes_sent > 0)
