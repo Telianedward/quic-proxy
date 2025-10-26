@@ -451,7 +451,7 @@ void Http1Server::handle_io_events() noexcept
         // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
         bool is_ssl = info.ssl != nullptr;
 
-        // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
+            // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
         if (is_ssl && !info.handshake_done)
         {
             int ssl_accept_result = SSL_accept(info.ssl);
@@ -460,6 +460,8 @@ void Http1Server::handle_io_events() noexcept
                 int ssl_error = SSL_get_error(info.ssl, ssl_accept_result);
                 if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                 {
+                    // 🟡 ЛОГИРОВАНИЕ ТЕКУЩЕГО СОСТОЯНИЯ SSL
+                    LOG_DEBUG("🔒 SSL state: {}", SSL_state_string_long(info.ssl));
                     LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
                     continue; // Ждём следующего цикла
                 }
