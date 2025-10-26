@@ -550,19 +550,28 @@ void Http1Server::handle_io_events() noexcept
 
             if (!keep_alive)
             {
-                // 🟢 Закрываем TLS-соединение перед освобождением SSL-объекта
+                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
                 if (is_ssl && info.ssl)
                 {
-                    LOG_DEBUG("[server.cpp:575] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                    int shutdown_result = SSL_shutdown(info.ssl);
-                    if (shutdown_result < 0)
+                    // Проверяем, можно ли вызвать SSL_shutdown()
+                    int ssl_state = SSL_get_state(info.ssl);
+                    if (ssl_state != SSL_ST_OK && ssl_state != SSL_ST_BEFORE)
                     {
-                        LOG_WARN("[server.cpp:578] ⚠️ SSL_shutdown() вернул ошибку: {}",
-                                 ERR_error_string(ERR_get_error(), nullptr));
+                        LOG_DEBUG("[server.cpp:575] 🟡 Состояние SSL не позволяет вызвать SSL_shutdown(). Пропускаем.");
                     }
                     else
                     {
-                        LOG_INFO("[server.cpp:581] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        LOG_DEBUG("[server.cpp:578] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                     ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO("[server.cpp:584] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
                     }
                 }
 
@@ -594,19 +603,28 @@ void Http1Server::handle_io_events() noexcept
             LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
             if (!forward_data(info.backend_fd, client_fd, nullptr))
             {
-                // 🟢 Закрываем TLS-соединение перед освобождением SSL-объекта
+                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
                 if (is_ssl && info.ssl)
                 {
-                    LOG_DEBUG("[server.cpp:605] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                    int shutdown_result = SSL_shutdown(info.ssl);
-                    if (shutdown_result < 0)
+                    // Проверяем, можно ли вызвать SSL_shutdown()
+                    int ssl_state = SSL_get_state(info.ssl);
+                    if (ssl_state != SSL_ST_OK && ssl_state != SSL_ST_BEFORE)
                     {
-                        LOG_WARN("[server.cpp:608] ⚠️ SSL_shutdown() вернул ошибку: {}",
-                                 ERR_error_string(ERR_get_error(), nullptr));
+                        LOG_DEBUG("[server.cpp:605] 🟡 Состояние SSL не позволяет вызвать SSL_shutdown(). Пропускаем.");
                     }
                     else
                     {
-                        LOG_INFO("[server.cpp:611] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        LOG_DEBUG("[server.cpp:608] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN("[server.cpp:611] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                     ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO("[server.cpp:614] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
                     }
                 }
 
