@@ -50,7 +50,7 @@ add_executable(quic_proxy
 
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
-    PkgConfig::NGHTTP2
+    # PkgConfig::NGHTTP2
     pthread
     fmt::fmt
     OpenSSL::SSL
