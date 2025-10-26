@@ -606,7 +606,8 @@ void Http1Server::handle_io_events() noexcept
 bool Http1Server::forward_data(int from_fd, int to_fd) noexcept
 {
     // 🟢 ЛОГИРОВАНИЕ ВХОДА В ФУНКЦИЮ
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={})", from_fd, to_fd);
+    LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}) | use_ssl={}",
+          from_fd, to_fd, ssl_connections_.find(from_fd) != ssl_connections_.end());
 
     // 🟡 БУФЕР ДЛЯ ПРИЁМА ДАННЫХ
     /**
