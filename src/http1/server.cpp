@@ -874,8 +874,8 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                 }
                 // Логируем первые 256 байт отправленных данных — достаточно для отладки HTTP-заголовков.
                 LOG_DEBUG("📦 Отправлено содержимое (первые {} байт):\n{}",
-                          std::min<size_t>(256, sent_chunk.size()),
-                          sent_chunk.substr(0, std::min<size_t>(256, sent_chunk.size())));
+                          std::min<size_t>(bytes_sent, sent_chunk.size()),
+                          sent_chunk.substr(0, std::min<size_t>(bytes_sent, sent_chunk.size())));
             }
 
             // 🟥 ОБРАБОТКА ОШИБКИ ОТПРАВКИ (bytes_sent < 0)
