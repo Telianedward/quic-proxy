@@ -650,30 +650,31 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept
          * @note SSL_read() может вернуть SSL_ERROR_WANT_READ/WRITE — это нормально в неблокирующем режиме.
          */
         bytes_read = SSL_read(ssl_connections_[from_fd], buffer, sizeof(buffer));
-        if (bytes_read <= 0)
+        if (use_ssl)
         {
-            // 🟥 ОБРАБОТКА ОШИБОК SSL_READ
-            /**
-             * @brief Код ошибки SSL, возвращаемый SSL_get_error().
-             * @details Используется для определения причины ошибки SSL_read().
-             *          Возможные значения:
-             *          - SSL_ERROR_WANT_READ: нужно повторить попытку чтения.
-             *          - SSL_ERROR_WANT_WRITE: нужно повторить попытку записи.
-             *          - Другие коды — критические ошибки (например, разрыв соединения).
-             */
-            int ssl_error = SSL_get_error(ssl_connections_[from_fd], bytes_read);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            LOG_DEBUG("[server.cpp:479] 🟢 Начало чтения данных через SSL для client_fd={}", from_fd);
+
+            bytes_read = SSL_read(ssl_connections_[from_fd], buffer, sizeof(buffer));
+            if (bytes_read <= 0)
             {
-                // 🟨 НОРМАЛЬНОЕ СОСТОЯНИЕ — ПОВТОРИТЬ ПОПЫТКУ
-                LOG_DEBUG("⏸️ SSL_read() требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
-                return true;
+                int ssl_error = SSL_get_error(ssl_connections_[from_fd], bytes_read);
+                LOG_DEBUG("[server.cpp:483] 🔴 SSL_read вернул {} байт. Код ошибки: {}", bytes_read, ssl_error);
+
+                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                {
+                    LOG_WARN("[server.cpp:486] ⏸️ SSL_read требует повторной попытки: {} (SSL_ERROR_WANT_READ/WRITE)",
+                            SSL_state_string_long(ssl_connections_[from_fd]));
+                    return true;
+                }
+                else
+                {
+                    LOG_ERROR("[server.cpp:490] ❌ Критическая ошибка SSL_read: {} (код ошибки: {})",
+                            ERR_error_string(ERR_get_error(), nullptr), ssl_error);
+                    return false;
+                }
             }
-            else
-            {
-                // 🟥 КРИТИЧЕСКАЯ ОШИБКА — ЗАКРЫТЬ СОЕДИНЕНИЕ
-                LOG_ERROR("❌ SSL_read() ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
-                return false;
-            }
+
+            LOG_INFO("[server.cpp:495] ✅ Успешно прочитано {} байт данных от клиента через TLS", bytes_read);
         }
     }
     else
