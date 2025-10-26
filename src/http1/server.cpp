@@ -528,12 +528,18 @@ void Http1Server::handle_io_events() noexcept
         }
 
         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-        if (FD_ISSET(client_fd, &read_fds))
-        {
-            LOG_INFO("📥 Получены данные от клиента {}", client_fd);
-            LOG_DEBUG("🔄 Вызов forward_data(client_fd={}, backend_fd={})", client_fd, info.backend_fd);
+      if (FD_ISSET(client_fd, &read_fds))
+{
+    LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
+    LOG_DEBUG("[server.cpp:376] 🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
 
-            bool keep_alive = forward_data(client_fd, info.backend_fd);
+    // 👇 Добавляем лог перед вызовом SSL_read()
+    if (info.ssl != nullptr)
+    {
+        LOG_DEBUG("[server.cpp:379] 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
+    }
+
+    bool keep_alive = forward_data(client_fd, info.backend_fd);
 
             if (!keep_alive)
             {
