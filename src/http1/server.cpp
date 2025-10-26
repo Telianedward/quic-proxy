@@ -798,27 +798,35 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_INFO("📋 Первый HTTP-запрос от клиента:\n{}", request_str.substr(0, 512));
         }
 
-       // 🟡 ПРОВЕРКА: ЭТО ОТВЕТ ОТ БЭКЕНДА? (use_ssl == false)
-            if (!use_ssl)
-            {
-                // 🟠 ПРОВЕРКА: ЕСТЬ ЛИ ЗАГОЛОВОК Content-Length?
-                std::string response_str(buffer, bytes_read);
-                size_t content_length_pos = response_str.find("Content-Length:");
-                if (content_length_pos != std::string::npos)
-                {
-                    // 🟡 УДАЛЯЕМ Content-Length
-                    size_t end_of_line = response_str.find("\r\n", content_length_pos);
-                    if (end_of_line != std::string::npos)
-                    {
-                        response_str.erase(content_length_pos, end_of_line - content_length_pos + 2);
-                        LOG_INFO("[server.cpp:830] 🟡 Удалён заголовок Content-Length");
-                    }
+        // // 🟡 ПРОВЕРКА: ЭТО ОТВЕТ ОТ БЭКЕНДА? (use_ssl == false)
+        // if (!use_ssl)
+        // {
+        //     // 🟠 ПРОВЕРКА: ЕСТЬ ЛИ ЗАГОЛОВОК Content-Length?
+        //     std::string response_str(buffer, bytes_read);
+        //     size_t content_length_pos = response_str.find("Content-Length:");
+        //     if (content_length_pos != std::string::npos)
+        //     {
+        //         // 🟡 УДАЛЯЕМ Content-Length
+        //         size_t end_of_line = response_str.find("\r\n", content_length_pos);
+        //         if (end_of_line != std::string::npos)
+        //         {
+        //             response_str.erase(content_length_pos, end_of_line - content_length_pos + 2);
+        //             LOG_INFO("[server.cpp:830] 🟡 Удалён заголовок Content-Length");
+        //         }
 
-                    // 🟣 ПЕРЕЗАПИСЫВАЕМ БУФЕР
-                    bytes_read = static_cast<ssize_t>(response_str.size());
-                    memcpy(buffer, response_str.c_str(), bytes_read);
-                }
-            }
+        //         // // 🟢 ДОБАВЛЯЕМ Transfer-Encoding: chunked
+        //         // size_t headers_end = response_str.find("\r\n\r\n");
+        //         // if (headers_end != std::string::npos)
+        //         // {
+        //         //     response_str.insert(headers_end, "\r\nTransfer-Encoding: chunked");
+        //         //     LOG_INFO("[server.cpp:835] 🟢 Добавлен заголовок Transfer-Encoding: chunked");
+        //         // }
+
+        //         // 🟣 ПЕРЕЗАПИСЫВАЕМ БУФЕР
+        //         bytes_read = static_cast<ssize_t>(response_str.size());
+        //         memcpy(buffer, response_str.c_str(), bytes_read);
+        //     }
+        // }
 
         // 🟤 ОТПРАВКА ДАННЫХ НА СОКЕТ НАЗНАЧЕНИЯ
         /**
@@ -874,8 +882,8 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                 }
                 // Логируем первые 256 байт отправленных данных — достаточно для отладки HTTP-заголовков.
                 LOG_DEBUG("📦 Отправлено содержимое (первые {} байт):\n{}",
-                          std::min<size_t>(bytes_sent, sent_chunk.size()),
-                          sent_chunk.substr(0, std::min<size_t>(bytes_sent, sent_chunk.size())));
+                          std::min<size_t>(256, sent_chunk.size()),
+                          sent_chunk.substr(0, std::min<size_t>(256, sent_chunk.size())));
             }
 
             // 🟥 ОБРАБОТКА ОШИБКИ ОТПРАВКИ (bytes_sent < 0)
