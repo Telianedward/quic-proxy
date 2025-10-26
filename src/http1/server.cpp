@@ -166,17 +166,21 @@ bool Http1Server::run()
         FD_SET(listen_fd_, &read_fds);
 
         // Добавляем все активные соединения
-        for (const auto &[client_fd, backend_fd] : connections_)
+        for (const auto &conn : connections_)
         {
+            int client_fd = conn.first;
+            const ConnectionInfo& info = conn.second;
             FD_SET(client_fd, &read_fds);
-            FD_SET(backend_fd, &read_fds);
+            FD_SET(info.backend_fd, &read_fds);
         }
 
         // Выбираем максимальный дескриптор
         int max_fd = listen_fd_;
-        for (const auto &[client_fd, backend_fd] : connections_)
+        for (const auto &conn : connections_)
         {
-            max_fd = std::max({max_fd, client_fd, backend_fd});
+            int client_fd = conn.first;
+            const ConnectionInfo& info = conn.second;
+            max_fd = std::max({max_fd, client_fd, info.backend_fd});
         }
 
         timeval timeout{.tv_sec = 1, .tv_usec = 0}; // Таймаут 1 секунда
@@ -219,10 +223,12 @@ bool Http1Server::run()
     }
 
     // Закрываем все соединения
-    for (const auto &[client_fd, backend_fd] : connections_)
+    for (const auto &conn : connections_)
     {
+        int client_fd = conn.first;
+        const ConnectionInfo& info = conn.second;
         ::close(client_fd);
-        ::close(backend_fd);
+        ::close(info.backend_fd);
     }
     connections_.clear();
 
@@ -234,7 +240,6 @@ bool Http1Server::run()
     LOG_INFO("HTTP/1.1 сервер остановлен.");
     return true;
 }
-
 void Http1Server::stop()
 {
     running_ = false;
