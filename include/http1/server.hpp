@@ -93,21 +93,21 @@ private:
     std::unordered_map<int, SSL*> ssl_connections_; ///< Карта: client_fd → SSL*
 
     // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
-        /**
+       /**
      * @brief Структура для хранения информации о соединении.
      * @details Содержит:
      *          - backend_fd: дескриптор сокета бэкенда.
      *          - ssl: указатель на SSL-объект (nullptr, если нет TLS).
      *          - handshake_done: true, если TLS handshake завершён.
      */
-  struct ConnectionInfo {
-    int backend_fd;
-    SSL* ssl;           // Может быть nullptr, если нет TLS
-    bool handshake_done; // true, если handshake завершён
-};
+    struct ConnectionInfo {
+        int backend_fd;           ///< Дескриптор сокета бэкенда
+        SSL* ssl;                 ///< Указатель на SSL-объект (nullptr, если нет TLS)
+        bool handshake_done;      ///< true, если TLS handshake завершён
+    };
 
-std::unordered_map<int, ConnectionInfo> connections_;
-    std::unordered_map<int, time_t> timeouts_; ///< Карта таймаутов: client_fd -> время последней активности
+    // 🟢 Карта активных соединений: client_fd → ConnectionInfo
+    std::unordered_map<int, ConnectionInfo> connections_; ///< Карта активных соединений
 /**
  * @brief Создает и подключается к сокету сервера в России.
  * @return Дескриптор сокета или -1 при ошибке.
