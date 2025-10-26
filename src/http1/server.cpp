@@ -814,13 +814,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                     LOG_INFO("[server.cpp:830] 🟡 Удалён заголовок Content-Length");
                 }
 
-                // 🟢 ДОБАВЛЯЕМ Transfer-Encoding: chunked
-                size_t headers_end = response_str.find("\r\n\r\n");
-                if (headers_end != std::string::npos)
-                {
-                    response_str.insert(headers_end, "\r\nTransfer-Encoding: chunked");
-                    LOG_INFO("[server.cpp:835] 🟢 Добавлен заголовок Transfer-Encoding: chunked");
-                }
+                // // 🟢 ДОБАВЛЯЕМ Transfer-Encoding: chunked
+                // size_t headers_end = response_str.find("\r\n\r\n");
+                // if (headers_end != std::string::npos)
+                // {
+                //     response_str.insert(headers_end, "\r\nTransfer-Encoding: chunked");
+                //     LOG_INFO("[server.cpp:835] 🟢 Добавлен заголовок Transfer-Encoding: chunked");
+                // }
 
                 // 🟣 ПЕРЕЗАПИСЫВАЕМ БУФЕР
                 bytes_read = static_cast<ssize_t>(response_str.size());
