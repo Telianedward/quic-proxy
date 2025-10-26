@@ -169,7 +169,7 @@ bool Http1Server::run()
         for (const auto &conn : connections_)
         {
             int client_fd = conn.first;
-            const ConnectionInfo& info = conn.second;
+            const ConnectionInfo &info = conn.second;
             FD_SET(client_fd, &read_fds);
             FD_SET(info.backend_fd, &read_fds);
         }
@@ -179,7 +179,7 @@ bool Http1Server::run()
         for (const auto &conn : connections_)
         {
             int client_fd = conn.first;
-            const ConnectionInfo& info = conn.second;
+            const ConnectionInfo &info = conn.second;
             max_fd = std::max({max_fd, client_fd, info.backend_fd});
         }
 
@@ -226,7 +226,7 @@ bool Http1Server::run()
     for (const auto &conn : connections_)
     {
         int client_fd = conn.first;
-        const ConnectionInfo& info = conn.second;
+        const ConnectionInfo &info = conn.second;
         ::close(client_fd);
         ::close(info.backend_fd);
     }
@@ -453,14 +453,14 @@ void Http1Server::handle_io_events() noexcept
     // Итерируем по копии
     for (const auto &conn : connections_copy)
     {
-        int client_fd = conn.first;      // Дескриптор клиента
-        const ConnectionInfo& info = conn.second; // Информация о соединении
+        int client_fd = conn.first;               // Дескриптор клиента
+        const ConnectionInfo &info = conn.second; // Информация о соединении
 
         // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
         bool is_ssl = info.ssl != nullptr;
 
-            // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
-               // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
+        // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
+        // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
         if (is_ssl && !info.handshake_done)
         {
             int ssl_accept_result = SSL_accept(info.ssl);
@@ -518,7 +518,7 @@ void Http1Server::handle_io_events() noexcept
             LOG_INFO("✅ TLS handshake успешно завершён для клиента: {} (fd={})", client_fd, client_fd);
 
             // Обновляем информацию — помечаем handshake как завершённый
-            ConnectionInfo& mutable_info = connections_[client_fd];
+            ConnectionInfo &mutable_info = connections_[client_fd];
             mutable_info.handshake_done = true;
         }
 
@@ -526,9 +526,9 @@ void Http1Server::handle_io_events() noexcept
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
         FD_SET(client_fd, &read_fds);
-        FD_SET(info.backend_fd, &read_fds); // 👈 Используем info.backend_fd
+        FD_SET(info.backend_fd, &read_fds);                  // 👈 Используем info.backend_fd
         int max_fd = std::max({client_fd, info.backend_fd}); // 👈 std::max с initializer list
-        timeval timeout{.tv_sec = 0, .tv_usec = 1000}; // 1 мс — ускоряем реакцию
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000};       // 1 мс — ускоряем реакцию
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0)
         {
@@ -550,14 +550,36 @@ void Http1Server::handle_io_events() noexcept
 
             if (!keep_alive)
             {
+                // 🟢 Закрываем TLS-соединение перед освобождением SSL-объекта
+                if (is_ssl && info.ssl)
+                {
+                    LOG_DEBUG("[server.cpp:575] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                    int shutdown_result = SSL_shutdown(info.ssl);
+                    if (shutdown_result < 0)
+                    {
+                        LOG_WARN("[server.cpp:578] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                 ERR_error_string(ERR_get_error(), nullptr));
+                    }
+                    else
+                    {
+                        LOG_INFO("[server.cpp:581] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                    }
+                }
+
+                // 🟢 Закрываем сокеты
                 ::close(client_fd);
                 ::close(info.backend_fd);
+
+                // 🟢 Удаляем из карт
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                if (is_ssl)
+
+                // 🟢 Освобождаем SSL-объект
+                if (is_ssl && info.ssl)
                 {
                     SSL_free(info.ssl);
                 }
+
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
             else
@@ -570,16 +592,38 @@ void Http1Server::handle_io_events() noexcept
         if (FD_ISSET(info.backend_fd, &read_fds))
         {
             LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
-            if (!forward_data(info.backend_fd, client_fd, nullptr)) // 👈 Бэкенд не использует SSL
+            if (!forward_data(info.backend_fd, client_fd, nullptr))
             {
+                // 🟢 Закрываем TLS-соединение перед освобождением SSL-объекта
+                if (is_ssl && info.ssl)
+                {
+                    LOG_DEBUG("[server.cpp:605] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                    int shutdown_result = SSL_shutdown(info.ssl);
+                    if (shutdown_result < 0)
+                    {
+                        LOG_WARN("[server.cpp:608] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                 ERR_error_string(ERR_get_error(), nullptr));
+                    }
+                    else
+                    {
+                        LOG_INFO("[server.cpp:611] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                    }
+                }
+
+                // 🟢 Закрываем сокеты
                 ::close(client_fd);
                 ::close(info.backend_fd);
+
+                // 🟢 Удаляем из карт
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
-                if (is_ssl)
+
+                // 🟢 Освобождаем SSL-объект
+                if (is_ssl && info.ssl)
                 {
                     SSL_free(info.ssl);
                 }
+
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
             else
@@ -613,8 +657,8 @@ void Http1Server::handle_io_events() noexcept
 bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 {
     // 🟢 ЛОГИРОВАНИЕ ВХОДА В ФУНКЦИЮ
-   LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
-          from_fd, to_fd, ssl ? "true" : "false");
+    LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
+              from_fd, to_fd, ssl ? "true" : "false");
 
     // 🟡 БУФЕР ДЛЯ ПРИЁМА ДАННЫХ
     /**
@@ -656,7 +700,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         LOG_DEBUG("[server.cpp:479] 🟢 Начало чтения данных через SSL для client_fd={}", from_fd);
 
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
-      if (bytes_read <= 0)
+        if (bytes_read <= 0)
         {
             int ssl_error = SSL_get_error(ssl, bytes_read);
             LOG_DEBUG("[server.cpp:483] 🔴 SSL_read вернул {} байт. Код ошибки: {}", bytes_read, ssl_error);
@@ -664,7 +708,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
             {
                 LOG_WARN("[server.cpp:486] ⏸️ SSL_read требует повторной попытки: {} (SSL_ERROR_WANT_READ/WRITE)",
-                        SSL_state_string_long(ssl));
+                         SSL_state_string_long(ssl));
                 return true;
             }
             else if (bytes_read == 0)
@@ -677,7 +721,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             {
                 // 👇 Любая другая ошибка — критическая
                 LOG_ERROR("[server.cpp:500] ❌ Критическая ошибка SSL_read: {} (код ошибки: {})",
-                        ERR_error_string(ERR_get_error(), nullptr), ssl_error);
+                          ERR_error_string(ERR_get_error(), nullptr), ssl_error);
                 return false;
             }
         }
