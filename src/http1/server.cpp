@@ -536,18 +536,17 @@ void Http1Server::handle_io_events() noexcept
         }
 
         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-      if (FD_ISSET(client_fd, &read_fds))
-{
-    LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
-    LOG_DEBUG("[server.cpp:376] 🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
+        if (FD_ISSET(client_fd, &read_fds))
+        {
+            LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
+            LOG_DEBUG("[server.cpp:376] 🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
 
-    // 👇 Добавляем лог перед вызовом SSL_read()
-    if (info.ssl != nullptr)
-    {
-        LOG_DEBUG("[server.cpp:379] 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
-    }
+            if (info.ssl != nullptr)
+            {
+                LOG_DEBUG("[server.cpp:379] 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
+            }
 
-    bool keep_alive = forward_data(client_fd, info.backend_fd);
+            bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
 
             if (!keep_alive)
             {
@@ -571,7 +570,7 @@ void Http1Server::handle_io_events() noexcept
         if (FD_ISSET(info.backend_fd, &read_fds))
         {
             LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
-            if (!forward_data(info.backend_fd, client_fd))
+            if (!forward_data(info.backend_fd, client_fd, nullptr)) // 👈 Бэкенд не использует SSL
             {
                 ::close(client_fd);
                 ::close(info.backend_fd);
@@ -611,11 +610,11 @@ void Http1Server::handle_io_events() noexcept
  * @warning Не вызывать при отсутствии данных — может привести к busy-waiting.
  * @note Если `from_fd` связан с SSL-объектом — используется SSL_read(). Иначе — recv().
  */
-bool Http1Server::forward_data(int from_fd, int to_fd) noexcept
+bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 {
     // 🟢 ЛОГИРОВАНИЕ ВХОДА В ФУНКЦИЮ
-    LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}) | use_ssl={}",
-          from_fd, to_fd, ssl_connections_.find(from_fd) != ssl_connections_.end());
+   LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
+          from_fd, to_fd, ssl ? "true" : "false");
 
     // 🟡 БУФЕР ДЛЯ ПРИЁМА ДАННЫХ
     /**
@@ -635,7 +634,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept
      * @details true — если `from_fd` есть в карте `ssl_connections_` (то есть это клиентское TLS-соединение).
      *          false — если это обычное TCP-соединение (например, с бэкендом).
      */
-    bool use_ssl = ssl_connections_.find(from_fd) != ssl_connections_.end();
+    bool use_ssl = (ssl != nullptr);
     // Логируем тип соединения — важно для диагностики.
     LOG_DEBUG("🔒 use_ssl = {}", use_ssl ? "true" : "false");
 
@@ -664,7 +663,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd) noexcept
          * @return Количество прочитанных байт, или <=0 при ошибке.
          * @note SSL_read() может вернуть SSL_ERROR_WANT_READ/WRITE — это нормально в неблокирующем режиме.
          */
-        bytes_read = SSL_read(ssl_connections_[from_fd], buffer, sizeof(buffer));
+        bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
         if (use_ssl)
         {
             LOG_DEBUG("[server.cpp:479] 🟢 Начало чтения данных через SSL для client_fd={}", from_fd);
