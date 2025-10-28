@@ -651,6 +651,19 @@ void Http1Server::handle_io_events() noexcept
         }
     }
 }
+
+SSL* Http1Server::get_ssl_for_fd(int fd) noexcept
+{
+    for (const auto &conn : connections_)
+    {
+        if (conn.first == fd)
+        {
+            return conn.second.ssl;
+        }
+    }
+    return nullptr;
+}
+
 /**
  * @brief Передаёт данные между двумя сокетами (клиент ↔ бэкенд) в неблокирующем режиме, с поддержкой TLS.
  *
@@ -693,15 +706,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     // Логируем размер буфера для контроля.
     LOG_DEBUG("📦 Буфер создан: размер {} байт", sizeof(buffer));
     // 🟡 Поиск SSL* по to_fd
-    SSL *target_ssl = nullptr;
-    for (const auto &conn : connections_)
-    {
-        if (conn.first == to_fd)
-        {
-            target_ssl = conn.second.ssl;
-            break;
-        }
-    }
+     SSL *target_ssl = get_ssl_for_fd(to_fd);
     // 🟠 ОПРЕДЕЛЕНИЕ ТИПА СОЕДИНЕНИЯ: SSL ИЛИ НЕТ
     /**
      * @brief Флаг, указывающий, использует ли соединение TLS-шифрование.
@@ -961,4 +966,17 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         }
     }
+    else if (bytes_read == 0)
+    {
+        LOG_INFO("🔚 Клиент (from_fd={}) закрыл соединение", from_fd);
+        return false;
+    }
+    else
+    {
+        LOG_ERROR("❌ Ошибка чтения данных от клиента (from_fd={})", from_fd);
+        return false;
+    }
+
+    // Если мы дошли сюда — значит, данные были обработаны и соединение активно.
+    return true;
 }
