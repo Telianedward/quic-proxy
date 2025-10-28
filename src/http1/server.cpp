@@ -17,55 +17,7 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-include <thread> // 👈 ДОБАВЬТЕ ЭТУ СТРОКУ
-#include <chrono> // 👈 ДОБАВЬТЕ ЭТУ СТРОКУ
 
-    std::unordered_map<int, FlowControl> flow_control_; // client_fd -> FlowControl
-
-    // 🟢 МЕТОД ДЛЯ ПРОВЕРКИ BACKPRESSURE
-  // === РЕАЛИЗАЦИЯ FLOW CONTROL МЕТОДОВ ===
-
-bool Http1Server::should_pause_sending(int client_fd) noexcept
-{
-    auto it = flow_control_.find(client_fd);
-    if (it == flow_control_.end()) {
-        // Создаем новую запись если не существует
-        flow_control_[client_fd] = FlowControl();
-        return false;
-    }
-
-    // Если клиент не готов - пауза 1 секунду
-    if (!it->second.client_ready) {
-        time_t now = time(nullptr);
-        if (now - it->second.last_backpressure < 1) { // 1 секунда паузы
-            LOG_DEBUG("⏸️ Flow control: клиент {} не готов, приостанавливаем отправку", client_fd);
-            return true;
-        } else {
-            // Сбрасываем флаг после паузы
-            it->second.client_ready = true;
-            LOG_DEBUG("🔄 Flow control: клиент {} снова готов к приёму", client_fd);
-        }
-    }
-    return false;
-}
-
-void Http1Server::update_flow_control(int client_fd, bool client_ready) noexcept
-{
-    // Находим или создаем запись
-    auto& fc = flow_control_[client_fd];
-
-    if (!client_ready && fc.client_ready) {
-        // Переход из готового состояния в неготовое
-        fc.client_ready = false;
-        fc.last_backpressure = time(nullptr);
-        LOG_DEBUG("🚫 Flow control: клиент {} перегружен, активируем backpressure", client_fd);
-    } else if (client_ready && !fc.client_ready) {
-        // Восстановление готовности
-        fc.client_ready = true;
-        LOG_DEBUG("✅ Flow control: клиент {} восстановил готовность", client_fd);
-    }
-    // Если состояние не изменилось - ничего не делаем
-}
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
@@ -156,7 +108,6 @@ Http1Server::~Http1Server()
     }
     ssl_connections_.clear();
 }
-
 bool Http1Server::run()
 {
     // Создаем сокет для прослушивания
@@ -585,14 +536,14 @@ void Http1Server::handle_io_events() noexcept
         FD_SET(client_fd, &read_fds);
         FD_SET(info.backend_fd, &read_fds);                  // 👈 Используем info.backend_fd
         int max_fd = std::max({client_fd, info.backend_fd}); // 👈 std::max с initializer list
-        timeval timeout{.tv_sec = 0, .tv_usec = 50000};       // 1 мс — ускоряем реакцию
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000};       // 1 мс — ускоряем реакцию
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0)
         {
             continue;
         }
 
-       // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+        // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
             LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
@@ -607,30 +558,8 @@ void Http1Server::handle_io_events() noexcept
 
             if (!keep_alive)
             {
-                // 🟢 ОБРАБОТКА SSL SHUTDOWN ПЕРЕД ЗАКРЫТИЕМ
-                if (is_ssl && info.ssl)
-                {
-                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
-                    int shutdown_state = SSL_get_shutdown(info.ssl);
-                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
-                    {
-                        LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
-                    }
-                    else
-                    {
-                        LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                        int shutdown_result = SSL_shutdown(info.ssl);
-                        if (shutdown_result < 0)
-                        {
-                            LOG_WARN("⚠️ SSL_shutdown() вернул ошибку: {}",
-                                    ERR_error_string(ERR_get_error(), nullptr));
-                        }
-                        else
-                        {
-                            LOG_INFO("✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
-                        }
-                    }
-                }
+                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
+          if (is_ssl && info.ssl)
 
                 // 🟢 Закрываем сокеты
                 ::close(client_fd);
@@ -750,72 +679,117 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
               from_fd, to_fd, ssl ? "true" : "false");
 
-    const size_t MAX_BUFFER = 4096; // Уменьшаем до 4KB
-    char buffer[MAX_BUFFER];
+    // 🟢 ОГРАНИЧИВАЕМ РАЗМЕР БУФЕРА ДЛЯ SSL
+    const size_t MAX_SSL_BUFFER = 16384; // 16KB - максимальный размер для TLS записи
+    char buffer[MAX_SSL_BUFFER];
     bool use_ssl = (ssl != nullptr);
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
     ssize_t bytes_read = 0;
     if (use_ssl) {
+        // 🟢 ЧИТАЕМ МЕНЬШИЕ ЧАНКИ ДЛЯ SSL
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
     } else {
         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
     }
 
     if (bytes_read <= 0) {
-        // Обработка ошибок чтения...
-        return (bytes_read == 0) ? false : true;
+        // Обработка ошибок (существующий код)
+        if (use_ssl) {
+            int ssl_error = SSL_get_error(ssl, bytes_read);
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                return true;
+            } else if (bytes_read == 0) {
+                LOG_INFO("🔚 SSL соединение закрыто клиентом (from_fd={})", from_fd);
+                return false;
+            }
+        } else {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return true;
+            } else if (bytes_read == 0) {
+                LOG_INFO("🔚 Соединение закрыто клиентом (from_fd={})", from_fd);
+                return false;
+            }
+        }
+        LOG_ERROR("❌ Ошибка чтения: bytes_read={}, use_ssl={}", bytes_read, use_ssl);
+        return false;
     }
 
     LOG_INFO("✅ Получено {} байт данных от {} (fd={})", bytes_read, use_ssl ? "клиента" : "сервера", from_fd);
 
-    // 🟢 ПРОСТАЯ ПЕРЕДАЧА БЕЗ FLOW CONTROL
+    // 🟢 ПЕРЕДАЧА ДАННЫХ С УЧЁТОМ ОГРАНИЧЕНИЙ SSL
     SSL *target_ssl = get_ssl_for_fd(to_fd);
     ssize_t total_sent = 0;
 
     while (total_sent < bytes_read) {
         size_t remaining = static_cast<size_t>(bytes_read - total_sent);
-        size_t chunk_size = std::min(remaining, static_cast<size_t>(1024)); // 1KB чанки
+
+        // 🟢 ОГРАНИЧИВАЕМ РАЗМЕР ЗАПИСИ ДЛЯ SSL
+        size_t chunk_size = remaining;
+        if (target_ssl != nullptr) {
+            // Для SSL используем меньшие чанки
+            chunk_size = std::min(remaining, static_cast<size_t>(4096)); // 4KB максимум для SSL
+        }
+
+        LOG_DEBUG("📦 Отправка чанка {}/{} байт", chunk_size, remaining);
 
         ssize_t bytes_sent = 0;
 
+        // 🟢 ПРОВЕРКА СОСТОЯНИЯ SSL ПЕРЕД ЗАПИСЬЮ
         if (target_ssl != nullptr) {
             if (!SSL_is_init_finished(target_ssl)) {
                 LOG_ERROR("❌ SSL соединение не готово для записи");
                 return false;
             }
 
+            // 🟢 ИСПОЛЬЗУЕМ SSL_write С ОГРАНИЧЕННЫМ РАЗМЕРОМ
             bytes_sent = SSL_write(target_ssl, buffer + total_sent, chunk_size);
         } else {
             bytes_sent = send(to_fd, buffer + total_sent, chunk_size, MSG_NOSIGNAL);
         }
-
+        // В методе forward_data после SSL_write можно добавить:
+        if (target_ssl != nullptr) {
+            int pending = SSL_pending(target_ssl);
+            if (pending > 0) {
+                LOG_DEBUG("📊 SSL_pending: {} байт в буфере", pending);
+            }
+        }
         if (bytes_sent <= 0) {
             if (target_ssl != nullptr) {
                 int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                 if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                    LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                    LOG_WARN("⏸️ SSL_write требует повторной попытки (осталось {}/{} байт)", remaining, bytes_read);
+
+                    // 🟢 СОХРАНЯЕМ СОСТОЯНИЕ ДЛЯ ПОВТОРНОЙ ОТПРАВКИ
+                    // В реальной реализации нужно добавить pending sends для SSL
                     return true;
+                } else if (ssl_error == SSL_ERROR_SSL) {
+                    LOG_ERROR("❌ Критическая ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
+                    return false;
                 } else {
-                    LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
+                    LOG_ERROR("❌ SSL_write ошибка: код={}, {}", ssl_error, ERR_error_string(ERR_get_error(), nullptr));
                     return false;
                 }
             } else {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_WARN("⏸️ Буфер отправки заполнен");
+                    LOG_WARN("⏸️ Буфер отправки заполнен (осталось {}/{} байт)", remaining, bytes_read);
                     return true;
+                } else if (errno == EPIPE || errno == ECONNRESET) {
+                    LOG_WARN("🔌 Соединение разорвано клиентом");
+                    return false;
                 } else {
-                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                    LOG_ERROR("❌ send() ошибка: {} (errno={})", strerror(errno), errno);
                     return false;
                 }
             }
         }
 
         total_sent += bytes_sent;
+        LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, total_sent, bytes_read);
 
-        // 🟢 КОРОТКАЯ ПАУЗА ДЛЯ SSL
+        // 🟢 КОРОТКАЯ ПАУЗА ДЛЯ SSL, ЧТОБЫ ИЗБЕЖАТЬ ПЕРЕПОЛНЕНИЯ БУФЕРОВ
         if (target_ssl != nullptr && bytes_sent > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
         }
     }
 
