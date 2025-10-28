@@ -348,7 +348,7 @@ void Http1Server::handle_new_connection() noexcept
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
-            LOG_ERROR("[server.cpp:258] ❌ Ошибка accept: {}", strerror(errno));
+            LOG_ERROR("❌ Ошибка accept: {}", strerror(errno));
         }
         return;
     }
@@ -356,7 +356,7 @@ void Http1Server::handle_new_connection() noexcept
     // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА
     if (!set_nonblocking(client_fd))
     {
-        LOG_ERROR("[server.cpp:267] ❌ Не удалось установить неблокирующий режим для клиента");
+        LOG_ERROR("❌ Не удалось установить неблокирующий режим для клиента");
         ::close(client_fd);
         return;
     }
@@ -364,7 +364,7 @@ void Http1Server::handle_new_connection() noexcept
     // 🟤 ЛОГИРОВАНИЕ ИНФОРМАЦИИ О КЛИЕНТЕ
     std::string client_ip_str = inet_ntoa(client_addr.sin_addr);
     uint16_t client_port_num = ntohs(client_addr.sin_port);
-    LOG_INFO("[server.cpp:273] 🟢 Новое соединение от клиента: {}:{} (fd={})",
+    LOG_INFO("🟢 Новое соединение от клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
 
     // 🟢 ОБЪЯВЛЯЕМ backend_fd ВНАЧАЛЕ МЕТОДА
@@ -374,7 +374,7 @@ void Http1Server::handle_new_connection() noexcept
     backend_fd = connect_to_backend();
     if (backend_fd == -1)
     {
-        LOG_ERROR("[server.cpp:284] ❌ Не удалось подключиться к серверу в России. Закрываем соединение с клиентом.");
+        LOG_ERROR("❌ Не удалось подключиться к серверу в России. Закрываем соединение с клиентом.");
         ::close(client_fd);
         return;
     }
@@ -383,7 +383,7 @@ void Http1Server::handle_new_connection() noexcept
     SSL *ssl = SSL_new(ssl_ctx_);
     if (!ssl)
     {
-        LOG_ERROR("[server.cpp:292] ❌ Не удалось создать SSL-объект для клиента");
+        LOG_ERROR(" ❌ Не удалось создать SSL-объект для клиента");
         ::close(client_fd);
         return;
     }
@@ -404,7 +404,7 @@ void Http1Server::handle_new_connection() noexcept
     // 🟢 УСТАНАВЛИВАЕМ ТАЙМАУТ
     timeouts_[client_fd] = time(nullptr);
 
-    LOG_INFO("[server.cpp:308] ✅ TLS-соединение создано, но handshake не завершён. Ожидаем данные для продолжения.");
+    LOG_INFO("✅ TLS-соединение создано, но handshake не завершён. Ожидаем данные для продолжения.");
 
     // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
     int ssl_accept_result = SSL_accept(ssl);
@@ -413,12 +413,12 @@ void Http1Server::handle_new_connection() noexcept
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
         if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
         {
-            LOG_DEBUG("[server.cpp:318] ⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE). Соединение оставлено в connections_ для дальнейшей обработки.");
+            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE). Соединение оставлено в connections_ для дальнейшей обработки.");
             return; // Ждём следующего цикла select()
         }
         else
         {
-            LOG_ERROR("[server.cpp:323] ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+            LOG_ERROR(" ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
             SSL_free(ssl);
             connections_.erase(client_fd);
             timeouts_.erase(client_fd);
@@ -428,14 +428,14 @@ void Http1Server::handle_new_connection() noexcept
     }
 
     // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
-    LOG_INFO("[server.cpp:330] ✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})",
+    LOG_INFO(" ✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
 
     // Обновляем информацию — помечаем handshake как завершённый
     info.handshake_done = true;
     connections_[client_fd] = info;
 
-    LOG_INFO("[server.cpp:337] ✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})",
+    LOG_INFO(" ✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
 }
 /**
@@ -540,12 +540,12 @@ void Http1Server::handle_io_events() noexcept
         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
-            LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
-            LOG_DEBUG("[server.cpp:376] 🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
+            LOG_INFO(" 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
+            LOG_DEBUG("🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
 
             if (info.ssl != nullptr)
             {
-                LOG_DEBUG("[server.cpp:379] 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
+                LOG_DEBUG(" 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
             }
 
             bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
@@ -606,7 +606,7 @@ void Http1Server::handle_io_events() noexcept
             // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
             if (info.ssl != nullptr && !info.handshake_done)
             {
-                LOG_WARN("[server.cpp:567] ❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
+                LOG_WARN("❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
                 continue; // Пропускаем эту итерацию, ждём завершения handshake
             }
 
@@ -622,20 +622,20 @@ void Http1Server::handle_io_events() noexcept
                     int shutdown_state = SSL_get_shutdown(info.ssl);
                     if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
                     {
-                        LOG_DEBUG("[server.cpp:575] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                        LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
                     }
                     else
                     {
-                        LOG_DEBUG("[server.cpp:578] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        LOG_DEBUG(" 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
                         int shutdown_result = SSL_shutdown(info.ssl);
                         if (shutdown_result < 0)
                         {
-                            LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                            LOG_WARN(" ⚠️ SSL_shutdown() вернул ошибку: {}",
                                      ERR_error_string(ERR_get_error(), nullptr));
                         }
                         else
                         {
-                            LOG_INFO("[server.cpp:584] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                            LOG_INFO(" ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
                         }
                     }
                 }
@@ -702,7 +702,7 @@ SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
  */
 bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 {
-    LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
+    LOG_DEBUG(" 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
               from_fd, to_fd, ssl ? "true" : "false");
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
