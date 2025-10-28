@@ -70,11 +70,12 @@ public:
 private:
 // 🟢 ДОБАВЛЯЕМ СТРУКТУРУ ДЛЯ FLOW CONTROL
     struct FlowControl {
-        bool client_ready = true;    // Готов ли клиент принимать данные
-        size_t client_buffer_size = 0; // Размер буфера клиента
-        time_t last_backpressure = 0; // Время последнего backpressure
-    };
+        bool client_ready;      // Готов ли клиент принимать данные
+        time_t last_backpressure; // Время последнего backpressure
 
+        // Конструктор по умолчанию
+        FlowControl() : client_ready(true), last_backpressure(0) {}
+    };
     std::unordered_map<int, FlowControl> flow_control_; // client_fd -> FlowControl
 
 

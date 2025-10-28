@@ -17,39 +17,55 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-
+include <thread> // 👈 ДОБАВЬТЕ ЭТУ СТРОКУ
+#include <chrono> // 👈 ДОБАВЬТЕ ЭТУ СТРОКУ
 
     std::unordered_map<int, FlowControl> flow_control_; // client_fd -> FlowControl
 
     // 🟢 МЕТОД ДЛЯ ПРОВЕРКИ BACKPRESSURE
-    bool should_pause_sending(int client_fd) noexcept {
-        auto it = flow_control_.find(client_fd);
-        if (it == flow_control_.end()) {
-            flow_control_[client_fd] = FlowControl{};
-            return false;
-        }
+  // === РЕАЛИЗАЦИЯ FLOW CONTROL МЕТОДОВ ===
 
-        // Если клиент не готов - пауза 100ms
-        if (!it->second.client_ready) {
-            time_t now = time(nullptr);
-            if (now - it->second.last_backpressure < 1) { // 1 секунда паузы
-                return true;
-            } else {
-                // Сбрасываем флаг после паузы
-                it->second.client_ready = true;
-            }
-        }
+bool Http1Server::should_pause_sending(int client_fd) noexcept
+{
+    auto it = flow_control_.find(client_fd);
+    if (it == flow_control_.end()) {
+        // Создаем новую запись если не существует
+        flow_control_[client_fd] = FlowControl();
         return false;
     }
 
-    // 🟢 МЕТОД ДЛЯ ОБНОВЛЕНИЯ СОСТОЯНИЯ FLOW CONTROL
-    void update_flow_control(int client_fd, bool client_ready) noexcept {
-        auto& fc = flow_control_[client_fd];
-        fc.client_ready = client_ready;
-        if (!client_ready) {
-            fc.last_backpressure = time(nullptr);
+    // Если клиент не готов - пауза 1 секунду
+    if (!it->second.client_ready) {
+        time_t now = time(nullptr);
+        if (now - it->second.last_backpressure < 1) { // 1 секунда паузы
+            LOG_DEBUG("⏸️ Flow control: клиент {} не готов, приостанавливаем отправку", client_fd);
+            return true;
+        } else {
+            // Сбрасываем флаг после паузы
+            it->second.client_ready = true;
+            LOG_DEBUG("🔄 Flow control: клиент {} снова готов к приёму", client_fd);
         }
     }
+    return false;
+}
+
+void Http1Server::update_flow_control(int client_fd, bool client_ready) noexcept
+{
+    // Находим или создаем запись
+    auto& fc = flow_control_[client_fd];
+
+    if (!client_ready && fc.client_ready) {
+        // Переход из готового состояния в неготовое
+        fc.client_ready = false;
+        fc.last_backpressure = time(nullptr);
+        LOG_DEBUG("🚫 Flow control: клиент {} перегружен, активируем backpressure", client_fd);
+    } else if (client_ready && !fc.client_ready) {
+        // Восстановление готовности
+        fc.client_ready = true;
+        LOG_DEBUG("✅ Flow control: клиент {} восстановил готовность", client_fd);
+    }
+    // Если состояние не изменилось - ничего не делаем
+}
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
@@ -734,18 +750,8 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
               from_fd, to_fd, ssl ? "true" : "false");
 
-    // 🟢 ПРОВЕРКА BACKPRESSURE ДЛЯ ИСХОДЯЩИХ СОЕДИНЕНИЙ
-    SSL *target_ssl = get_ssl_for_fd(to_fd);
-    if (target_ssl != nullptr) {
-        // Это отправка данных клиенту через SSL
-        if (should_pause_sending(to_fd)) {
-            LOG_DEBUG("⏸️ Backpressure: приостанавливаем отправку клиенту fd={}", to_fd);
-            return true; // Продолжаем соединение, но не отправляем данные
-        }
-    }
-
-    const size_t MAX_SSL_BUFFER = 8192; // Уменьшаем буфер до 8KB
-    char buffer[MAX_SSL_BUFFER];
+    const size_t MAX_BUFFER = 4096; // Уменьшаем до 4KB
+    char buffer[MAX_BUFFER];
     bool use_ssl = (ssl != nullptr);
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
@@ -757,27 +763,19 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     }
 
     if (bytes_read <= 0) {
-        // Существующая обработка ошибок...
+        // Обработка ошибок чтения...
+        return (bytes_read == 0) ? false : true;
     }
 
     LOG_INFO("✅ Получено {} байт данных от {} (fd={})", bytes_read, use_ssl ? "клиента" : "сервера", from_fd);
 
-    // 🟢 ПЕРЕДАЧА ДАННЫХ С FLOW CONTROL
+    // 🟢 ПРОСТАЯ ПЕРЕДАЧА БЕЗ FLOW CONTROL
+    SSL *target_ssl = get_ssl_for_fd(to_fd);
     ssize_t total_sent = 0;
 
     while (total_sent < bytes_read) {
         size_t remaining = static_cast<size_t>(bytes_read - total_sent);
-
-        // 🟢 ДИНАМИЧЕСКИЙ РАЗМЕР ЧАНКА В ЗАВИСИМОСТИ ОТ НАГРУЗКИ
-        size_t chunk_size = std::min(remaining, static_cast<size_t>(2048)); // 2KB максимум
-
-        // 🟢 ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА BACKPRESSURE ПЕРЕД КАЖДОЙ ОТПРАВКОЙ
-        if (target_ssl != nullptr && should_pause_sending(to_fd)) {
-            LOG_DEBUG("⏸️ Backpressure во время отправки: приостанавливаем fd={}", to_fd);
-            return true;
-        }
-
-        LOG_DEBUG("📦 Отправка чанка {}/{} байт", chunk_size, remaining);
+        size_t chunk_size = std::min(remaining, static_cast<size_t>(1024)); // 1KB чанки
 
         ssize_t bytes_sent = 0;
 
@@ -796,38 +794,29 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             if (target_ssl != nullptr) {
                 int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                 if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                    LOG_WARN("⏸️ SSL_write требует повторной попытки (осталось {}/{} байт)", remaining, bytes_read);
-
-                    // 🟢 ОБНОВЛЯЕМ FLOW CONTROL - КЛИЕНТ НЕ ГОТОВ
-                    if (ssl_error == SSL_ERROR_WANT_WRITE) {
-                        update_flow_control(to_fd, false);
-                    }
-
+                    LOG_WARN("⏸️ SSL_write требует повторной попытки");
                     return true;
-                } else if (ssl_error == SSL_ERROR_SSL) {
-                    LOG_ERROR("❌ Критическая ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
-                    return false;
                 } else {
-                    LOG_ERROR("❌ SSL_write ошибка: код={}, {}", ssl_error, ERR_error_string(ERR_get_error(), nullptr));
+                    LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                     return false;
                 }
             } else {
-                // Обработка ошибок для обычных сокетов...
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    LOG_WARN("⏸️ Буфер отправки заполнен");
+                    return true;
+                } else {
+                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                    return false;
+                }
             }
         }
 
         total_sent += bytes_sent;
-        LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, total_sent, bytes_read);
 
-        // 🟢 УВЕЛИЧИВАЕМ ПАУЗУ ДЛЯ SSL
+        // 🟢 КОРОТКАЯ ПАУЗА ДЛЯ SSL
         if (target_ssl != nullptr && bytes_sent > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10)); // 10ms пауза
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-    }
-
-    // 🟢 ОБНОВЛЯЕМ FLOW CONTROL - УСПЕШНАЯ ОТПРАВКА
-    if (target_ssl != nullptr) {
-        update_flow_control(to_fd, true);
     }
 
     LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
