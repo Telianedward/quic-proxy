@@ -747,13 +747,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         } else {
             bytes_sent = send(to_fd, buffer + total_sent, chunk_size, MSG_NOSIGNAL);
         }
-        // В методе forward_data после SSL_write можно добавить:
-        if (target_ssl != nullptr) {
-            int pending = SSL_pending(target_ssl);
-            if (pending > 0) {
-                LOG_DEBUG("📊 SSL_pending: {} байт в буфере", pending);
-            }
-        }
+
         if (bytes_sent <= 0) {
             if (target_ssl != nullptr) {
                 int ssl_error = SSL_get_error(target_ssl, bytes_sent);
