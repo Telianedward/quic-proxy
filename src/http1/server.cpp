@@ -37,12 +37,6 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
         return;
     }
 
-    // 🟢 НАСТРОЙКИ SSL ДО ЗАГРУЗКИ СЕРТИФИКАТОВ
-    SSL_CTX_set_options(ssl_ctx_, SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
-    SSL_CTX_set_mode(ssl_ctx_, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-    SSL_CTX_set_read_ahead(ssl_ctx_, 1);
-
-
     // 🟢 ИСПОЛЬЗУЕМ ПОДГОТОВЛЕННЫЕ ФАЙЛЫ ИЗ /opt/quic-proxy/
     const char *cert_path = "/opt/quic-proxy/fullchain.pem";
     const char *key_path = "/opt/quic-proxy/privkey.pk8";
