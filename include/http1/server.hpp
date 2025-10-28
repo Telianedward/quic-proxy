@@ -68,6 +68,16 @@ public:
     void stop();
 
 private:
+// 🟢 ДОБАВЛЯЕМ СТРУКТУРУ ДЛЯ FLOW CONTROL
+    struct FlowControl {
+        bool client_ready = true;    // Готов ли клиент принимать данные
+        size_t client_buffer_size = 0; // Размер буфера клиента
+        time_t last_backpressure = 0; // Время последнего backpressure
+    };
+
+    std::unordered_map<int, FlowControl> flow_control_; // client_fd -> FlowControl
+
+
     // 👇 Добавляем структуру для отслеживания незавершённых отправок
     struct PendingSend
     {
