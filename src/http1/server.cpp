@@ -18,7 +18,6 @@
 #include <sstream>
 #include <poll.h>
 
-
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
@@ -91,8 +90,8 @@ Http1Server::~Http1Server()
 {
     if (ssl_ctx_)
     {
-           SSL_CTX_set_max_send_fragment(ssl_ctx_, 16384); // 16KB фрагменты
-    SSL_CTX_set_read_ahead(ssl_ctx_, 1); // Включить read-ahead
+        SSL_CTX_set_max_send_fragment(ssl_ctx_, 16384); // 16KB фрагменты
+        SSL_CTX_set_read_ahead(ssl_ctx_, 1);            // Включить read-ahead
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
     }
@@ -554,19 +553,25 @@ void Http1Server::handle_io_events() noexcept
             if (!keep_alive)
             {
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-               // В методе handle_io_events, замените блок SSL_shutdown:
-                if (is_ssl && info.ssl) {
+                // В методе handle_io_events, замените блок SSL_shutdown:
+                if (is_ssl && info.ssl)
+                {
                     // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
-                    if (SSL_is_init_finished(info.ssl)) {
+                    if (SSL_is_init_finished(info.ssl))
+                    {
                         LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
                         int shutdown_result = SSL_shutdown(info.ssl);
-                        if (shutdown_result < 0) {
+                        if (shutdown_result < 0)
+                        {
                             int ssl_error = SSL_get_error(info.ssl, shutdown_result);
-                            if (ssl_error != SSL_ERROR_SYSCALL && ssl_error != SSL_ERROR_SSL) {
+                            if (ssl_error != SSL_ERROR_SYSCALL && ssl_error != SSL_ERROR_SSL)
+                            {
                                 LOG_DEBUG("⚠️ SSL_shutdown() в процессе: {}", ssl_error);
                             }
                         }
-                    } else {
+                    }
+                    else
+                    {
                         LOG_DEBUG("⏸️ SSL не готов к shutdown - пропускаем");
                     }
                 }
@@ -594,71 +599,72 @@ void Http1Server::handle_io_events() noexcept
         }
 
         // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
-if (FD_ISSET(info.backend_fd, &read_fds))
-{
-    LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
-
-    // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
-    if (info.ssl != nullptr && !info.handshake_done) {
-        LOG_WARN("[server.cpp:567] ❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
-        continue; // Пропускаем эту итерацию, ждём завершения handshake
-    }
-
-    // 🟢 Передаём данные
-    bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
-
-    if (!keep_alive)
-    {
-        // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-        if (is_ssl && info.ssl)
+        if (FD_ISSET(info.backend_fd, &read_fds))
         {
-            // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
-            int shutdown_state = SSL_get_shutdown(info.ssl);
-            if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+            LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
+
+            // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
+            if (info.ssl != nullptr && !info.handshake_done)
             {
-                LOG_DEBUG("[server.cpp:575] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                LOG_WARN("[server.cpp:567] ❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
+                continue; // Пропускаем эту итерацию, ждём завершения handshake
+            }
+
+            // 🟢 Передаём данные
+            bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
+
+            if (!keep_alive)
+            {
+                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
+                if (is_ssl && info.ssl)
+                {
+                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
+                    int shutdown_state = SSL_get_shutdown(info.ssl);
+                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+                    {
+                        LOG_DEBUG("[server.cpp:575] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                    }
+                    else
+                    {
+                        LOG_DEBUG("[server.cpp:578] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                     ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO("[server.cpp:584] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
+                    }
+                }
+
+                // 🟢 Закрываем сокеты
+                ::close(client_fd);
+                ::close(info.backend_fd);
+
+                // 🟢 Удаляем из карт
+                connections_.erase(client_fd);
+                timeouts_.erase(client_fd);
+
+                // 🟢 Освобождаем SSL-объект
+                if (is_ssl && info.ssl)
+                {
+                    SSL_free(info.ssl);
+                }
+
+                LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
             else
             {
-                LOG_DEBUG("[server.cpp:578] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                int shutdown_result = SSL_shutdown(info.ssl);
-                if (shutdown_result < 0)
-                {
-                    LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
-                             ERR_error_string(ERR_get_error(), nullptr));
-                }
-                else
-                {
-                    LOG_INFO("[server.cpp:584] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
-                }
+                timeouts_[client_fd] = time(nullptr);
             }
         }
-
-        // 🟢 Закрываем сокеты
-        ::close(client_fd);
-        ::close(info.backend_fd);
-
-        // 🟢 Удаляем из карт
-        connections_.erase(client_fd);
-        timeouts_.erase(client_fd);
-
-        // 🟢 Освобождаем SSL-объект
-        if (is_ssl && info.ssl)
-        {
-            SSL_free(info.ssl);
-        }
-
-        LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
-    }
-    else
-    {
-        timeouts_[client_fd] = time(nullptr);
-    }
-}
     }
 }
 
-SSL* Http1Server::get_ssl_for_fd(int fd) noexcept
+SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
 {
     for (const auto &conn : connections_)
     {
@@ -704,21 +710,30 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     bool use_ssl = (ssl != nullptr);
 
     ssize_t bytes_read = 0;
-    if (use_ssl) {
+    if (use_ssl)
+    {
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
-    } else {
+    }
+    else
+    {
         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
     }
 
-    if (bytes_read <= 0) {
+    if (bytes_read <= 0)
+    {
         // Обработка ошибок (существующий код)
-        if (use_ssl) {
+        if (use_ssl)
+        {
             int ssl_error = SSL_get_error(ssl, bytes_read);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 return true;
             }
-        } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
                 return true;
             }
         }
@@ -731,40 +746,56 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     SSL *target_ssl = get_ssl_for_fd(to_fd);
 
     // 🟠 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
-    if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty()) {
+    if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty())
+    {
         // Есть незавершённые данные — обрабатываем их первыми
         auto &pending_queue = pending_sends_[to_fd];
-        while (!pending_queue.empty()) {
+        while (!pending_queue.empty())
+        {
             auto &pending = pending_queue.front();
-            if (pending.fd != to_fd) {
+            if (pending.fd != to_fd)
+            {
                 pending_queue.pop();
                 continue;
             }
 
             // Повторяем отправку
             ssize_t bytes_sent = 0;
-            if (target_ssl != nullptr) {
+            if (target_ssl != nullptr)
+            {
                 bytes_sent = SSL_write(target_ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
-            } else {
+            }
+            else
+            {
                 bytes_sent = send(to_fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
             }
 
-            if (bytes_sent <= 0) {
-                if (target_ssl != nullptr) {
+            if (bytes_sent <= 0)
+            {
+                if (target_ssl != nullptr)
+                {
                     int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                    {
                         LOG_WARN("⏸️ SSL_write требует повторной попытки");
                         return true; // Оставляем в очереди
-                    } else {
+                    }
+                    else
+                    {
                         LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                         pending_queue.pop(); // Удаляем из очереди при фатальной ошибке
                         return false;
                     }
-                } else {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                }
+                else
+                {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
                         LOG_WARN("⏸️ Буфер отправки заполнен");
                         return true;
-                    } else {
+                    }
+                    else
+                    {
                         LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
                         pending_queue.pop();
                         return false;
@@ -775,9 +806,12 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             pending.sent += bytes_sent;
             LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, pending.sent, pending.len);
 
-            if (pending.sent >= pending.len) {
+            if (pending.sent >= pending.len)
+            {
                 pending_queue.pop(); // Успешно отправили всю порцию
-            } else {
+            }
+            else
+            {
                 return true; // Остались неотправленные данные
             }
         }
@@ -794,30 +828,43 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
     // Пытаемся отправить сразу
     ssize_t bytes_sent = 0;
-    if (target_ssl != nullptr) {
+    if (target_ssl != nullptr)
+    {
         bytes_sent = SSL_write(target_ssl, new_send.data.get(), new_send.len);
-    } else {
+    }
+    else
+    {
         bytes_sent = send(to_fd, new_send.data.get(), new_send.len, MSG_NOSIGNAL);
     }
 
-    if (bytes_sent <= 0) {
-        if (target_ssl != nullptr) {
+    if (bytes_sent <= 0)
+    {
+        if (target_ssl != nullptr)
+        {
             int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 LOG_WARN("⏸️ SSL_write требует повторной попытки");
                 // Добавляем в очередь незавершённых отправок
                 pending_sends_[to_fd].push(std::move(new_send));
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                 return false;
             }
-        } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
                 LOG_WARN("⏸️ Буфер отправки заполнен");
                 pending_sends_[to_fd].push(std::move(new_send));
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
                 return false;
             }
