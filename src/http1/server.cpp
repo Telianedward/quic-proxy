@@ -655,6 +655,10 @@ void Http1Server::handle_io_events() noexcept
 // После строки 678 (начало функции forward_data)
 // Замените весь блок до конца функции на:
 
+// В файле: src/http1/server.cpp
+// После строки 678 (начало функции forward_data)
+// Замените весь блок до конца функции на:
+
 /**
  * @brief Передает данные от одного сокета к другому.
  * @param from_fd Сокет, откуда читаем данные.
@@ -670,98 +674,97 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL* ssl) noexcept {
     // Создаем буфер для чтения/отправки
     constexpr size_t BUFFER_SIZE = 8192;
     std::vector<char> buffer(BUFFER_SIZE);
-    ssize_t bytes_read = 0;
 
     // Цикл чтения данных с from_fd
     while (true) {
         if (ssl) {
             // Для SSL используем SSL_read
-            bytes_read = SSL_read(ssl, buffer.data(), static_cast<int>(BUFFER_SIZE));
-        } else {
-            // Для обычного сокета используем recv
-            bytes_read = recv(from_fd, buffer.data(), BUFFER_SIZE, 0);
-        }
-
-        // Проверка на ошибку или закрытие соединения
-        if (bytes_read <= 0) {
-            if (bytes_read == 0) {
-                LOG_INFO("🔌 Клиент закрыл соединение");
-                break;
-            } else {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_DEBUG("⏳ Буфер чтения пуст, ждем...");
-                    continue;
+            ssize_t bytes_read = SSL_read(ssl, buffer.data(), static_cast<int>(BUFFER_SIZE));
+            if (bytes_read <= 0) {
+                int ssl_error = SSL_get_error(ssl, bytes_read);
+                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                    LOG_WARN("[server.cpp:486] ⏸️ SSL_read требует повторной попытки: {} (SSL_ERROR_WANT_READ/WRITE)",
+                             SSL_state_string_long(ssl));
+                    return true; // Ждём следующего цикла
+                } else if (bytes_read == 0) {
+                    LOG_INFO("🔌 Клиент закрыл соединение");
+                    return false;
                 } else {
-                    LOG_ERROR("❌ Ошибка чтения данных от from_fd={}: {}", from_fd, strerror(errno));
+                    LOG_ERROR("❌ Ошибка SSL_read: {}", ERR_error_string(ERR_get_error(), nullptr));
                     return false;
                 }
             }
-        }
 
-        // Логируем факт получения данных
-        LOG_INFO("[server.cpp:495] ✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
+            // Логируем факт получения данных
+            LOG_INFO("[server.cpp:495] ✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
 
-        // Цикл отправки всех прочитанных байт
-        size_t bytes_to_send = static_cast<size_t>(bytes_read);
-        size_t bytes_sent_total = 0;
+            // Отправка данных через SSL_write
+            size_t bytes_to_send = static_cast<size_t>(bytes_read);
+            size_t bytes_sent_total = 0;
 
-        while (bytes_sent_total < bytes_to_send) {
-            ssize_t bytes_sent = 0;
-
-            // Определяем, нужно ли использовать SSL для отправки
-            // Мы ищем SSL-контекст для to_fd в connections_
-            SSL* target_ssl = nullptr;
-            for (const auto& conn : connections_) {
-                if (conn.first == to_fd) {
-                    target_ssl = conn.second.ssl;
-                    break;
-                }
-            }
-
-            if (target_ssl != nullptr) {
-                // Отправка через SSL_write
-                LOG_DEBUG("🔒 Отправка данных через SSL_write для клиента (to_fd={})", to_fd);
-                bytes_sent = SSL_write(target_ssl, buffer.data() + bytes_sent_total,
-                                       static_cast<int>(bytes_to_send - bytes_sent_total));
+            while (bytes_sent_total < bytes_to_send) {
+                ssize_t bytes_sent = SSL_write(ssl, buffer.data() + bytes_sent_total,
+                                               static_cast<int>(bytes_to_send - bytes_sent_total));
                 if (bytes_sent <= 0) {
-                    int ssl_error = SSL_get_error(target_ssl, bytes_sent);
+                    int ssl_error = SSL_get_error(ssl, bytes_sent);
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
                         LOG_WARN("⏸️ SSL_write требует повторной попытки");
-                        continue; // Ждём следующего цикла
+                        return true; // Ждём следующего цикла
                     } else {
                         LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                         return false;
                     }
                 }
-            } else {
-                // Обычная отправка через send
-                LOG_DEBUG("📤 Отправка данных через send (to_fd={})", to_fd);
-                bytes_sent = send(to_fd, buffer.data() + bytes_sent_total,
-                                  bytes_to_send - bytes_sent_total, 0);
-                if (bytes_sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                bytes_sent_total += static_cast<size_t>(bytes_sent);
+                LOG_DEBUG("📤 Отправлено {} байт (всего {} из {})", bytes_sent, bytes_sent_total, bytes_to_send);
+            }
+
+            LOG_SUCCESS("[server.cpp:1001] 🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+            return true; // Продолжаем обработку
+
+        } else {
+            // Для обычного сокета используем recv
+            ssize_t bytes_read = recv(from_fd, buffer.data(), BUFFER_SIZE, 0);
+            if (bytes_read <= 0) {
+                if (bytes_read == 0) {
+                    LOG_INFO("🔌 Клиент закрыл соединение");
                     return false;
+                } else {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        LOG_DEBUG("⏳ Буфер чтения пуст, ждем...");
+                        return true; // Ждём следующего цикла
+                    } else {
+                        LOG_ERROR("❌ Ошибка чтения данных от from_fd={}: {}", from_fd, strerror(errno));
+                        return false;
+                    }
                 }
             }
 
-            // Обработка успешной отправки
-            if (bytes_sent > 0) {
+            // Логируем факт получения данных
+            LOG_INFO("[server.cpp:495] ✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
+
+            // Отправка данных через send
+            size_t bytes_to_send = static_cast<size_t>(bytes_read);
+            size_t bytes_sent_total = 0;
+
+            while (bytes_sent_total < bytes_to_send) {
+                ssize_t bytes_sent = send(to_fd, buffer.data() + bytes_sent_total,
+                                          bytes_to_send - bytes_sent_total, 0);
+                if (bytes_sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                    return false;
+                } else if (bytes_sent < 0) {
+                    LOG_DEBUG("⏳ Буфер отправки переполнен, ждем...");
+                    return true; // Ждём следующего цикла
+                }
                 bytes_sent_total += static_cast<size_t>(bytes_sent);
                 LOG_DEBUG("📤 Отправлено {} байт (всего {} из {})", bytes_sent, bytes_sent_total, bytes_to_send);
-            } else if (bytes_sent == 0) {
-                LOG_WARN("⚠️ send() или SSL_write вернул 0 — возможно, соединение закрыто на стороне получателя");
-                break;
             }
-        }
 
-        // Если клиент закрыл соединение во время отправки, выходим
-        if (bytes_sent_total < bytes_to_send) {
-            break;
+            LOG_SUCCESS("[server.cpp:1001] 🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
+            return true; // Продолжаем обработку
         }
     }
-
-    LOG_SUCCESS("[server.cpp:1001] 🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
-    return true;
 }
 // /**
 //  * @brief Передаёт данные между двумя сокетами (клиент ↔ бэкенд) в неблокирующем режиме, с поддержкой TLS.
