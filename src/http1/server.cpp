@@ -689,11 +689,11 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 {
     // 🟢 ЛОГИРОВАНИЕ ВХОДА В ФУНКЦИЮ
     LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
-    //           from_fd, to_fd, ssl ? "true" : "false");
-    // bool is_chunked = false;
-    // size_t expected_chunk_size = 0;
-    // size_t received_chunk_size = 0;
-    // std::string chunk_buffer;
+              from_fd, to_fd, ssl ? "true" : "false");
+    bool is_chunked = false;
+    size_t expected_chunk_size = 0;
+    size_t received_chunk_size = 0;
+    std::string chunk_buffer;
     // 🟡 БУФЕР ДЛЯ ПРИЁМА ДАННЫХ
     /**
      * @brief Буфер для временного хранения данных, полученных из сокета.
@@ -966,17 +966,4 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         }
     }
-    else if (bytes_read == 0)
-    {
-        LOG_INFO("🔚 Клиент (from_fd={}) закрыл соединение", from_fd);
-        return false;
-    }
-    else
-    {
-        LOG_ERROR("❌ Ошибка чтения данных от клиента (from_fd={})", from_fd);
-        return false;
-    }
-
-    // Если мы дошли сюда — значит, данные были обработаны и соединение активно.
-    return true;
 }
