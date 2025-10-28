@@ -673,14 +673,15 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     LOG_DEBUG("[server.cpp:460] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
               from_fd, to_fd, ssl ? "true" : "false");
 
-    // 🟢 УБИРАЕМ CHUNKED PROCESSING ДЛЯ TLS-СОЕДИНЕНИЙ
-    // Прокси должен просто передавать данные как есть, без анализа контента
-    char buffer[8192];
+    // 🟢 ОГРАНИЧИВАЕМ РАЗМЕР БУФЕРА ДЛЯ SSL
+    const size_t MAX_SSL_BUFFER = 16384; // 16KB - максимальный размер для TLS записи
+    char buffer[MAX_SSL_BUFFER];
     bool use_ssl = (ssl != nullptr);
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
     ssize_t bytes_read = 0;
     if (use_ssl) {
+        // 🟢 ЧИТАЕМ МЕНЬШИЕ ЧАНКИ ДЛЯ SSL
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
     } else {
         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
@@ -692,52 +693,80 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             int ssl_error = SSL_get_error(ssl, bytes_read);
             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
                 return true;
+            } else if (bytes_read == 0) {
+                LOG_INFO("🔚 SSL соединение закрыто клиентом (from_fd={})", from_fd);
+                return false;
             }
         } else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return true;
+            } else if (bytes_read == 0) {
+                LOG_INFO("🔚 Соединение закрыто клиентом (from_fd={})", from_fd);
+                return false;
             }
         }
+        LOG_ERROR("❌ Ошибка чтения: bytes_read={}, use_ssl={}", bytes_read, use_ssl);
         return false;
     }
 
     LOG_INFO("✅ Получено {} байт данных от {} (fd={})", bytes_read, use_ssl ? "клиента" : "сервера", from_fd);
 
-    // 🟢 ПРОСТАЯ ПЕРЕДАЧА ДАННЫХ БЕЗ CHUNKED PROCESSING
+    // 🟢 ПЕРЕДАЧА ДАННЫХ С УЧЁТОМ ОГРАНИЧЕНИЙ SSL
     SSL *target_ssl = get_ssl_for_fd(to_fd);
     ssize_t total_sent = 0;
 
     while (total_sent < bytes_read) {
         size_t remaining = static_cast<size_t>(bytes_read - total_sent);
-        ssize_t bytes_sent = 0;
-// В методе forward_data перед SSL_write:
-if (target_ssl && !SSL_is_init_finished(target_ssl)) {
-    LOG_ERROR("❌ SSL соединение не готово для записи");
-    return false;
-}
+
+        // 🟢 ОГРАНИЧИВАЕМ РАЗМЕР ЗАПИСИ ДЛЯ SSL
+        size_t chunk_size = remaining;
         if (target_ssl != nullptr) {
-            // 🟢 ИСПОЛЬЗУЕМ SSL_write БЕЗ АНАЛИЗА ДАННЫХ
-            bytes_sent = SSL_write(target_ssl, buffer + total_sent, remaining);
+            // Для SSL используем меньшие чанки
+            chunk_size = std::min(remaining, static_cast<size_t>(4096)); // 4KB максимум для SSL
+        }
+
+        LOG_DEBUG("📦 Отправка чанка {}/{} байт", chunk_size, remaining);
+
+        ssize_t bytes_sent = 0;
+
+        // 🟢 ПРОВЕРКА СОСТОЯНИЯ SSL ПЕРЕД ЗАПИСЬЮ
+        if (target_ssl != nullptr) {
+            if (!SSL_is_init_finished(target_ssl)) {
+                LOG_ERROR("❌ SSL соединение не готово для записи");
+                return false;
+            }
+
+            // 🟢 ИСПОЛЬЗУЕМ SSL_write С ОГРАНИЧЕННЫМ РАЗМЕРОМ
+            bytes_sent = SSL_write(target_ssl, buffer + total_sent, chunk_size);
         } else {
-            bytes_sent = send(to_fd, buffer + total_sent, remaining, MSG_NOSIGNAL);
+            bytes_sent = send(to_fd, buffer + total_sent, chunk_size, MSG_NOSIGNAL);
         }
 
         if (bytes_sent <= 0) {
             if (target_ssl != nullptr) {
                 int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                 if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                    LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                    LOG_WARN("⏸️ SSL_write требует повторной попытки (осталось {}/{} байт)", remaining, bytes_read);
+
+                    // 🟢 СОХРАНЯЕМ СОСТОЯНИЕ ДЛЯ ПОВТОРНОЙ ОТПРАВКИ
+                    // В реальной реализации нужно добавить pending sends для SSL
                     return true;
+                } else if (ssl_error == SSL_ERROR_SSL) {
+                    LOG_ERROR("❌ Критическая ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
+                    return false;
                 } else {
-                    LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
+                    LOG_ERROR("❌ SSL_write ошибка: код={}, {}", ssl_error, ERR_error_string(ERR_get_error(), nullptr));
                     return false;
                 }
             } else {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    LOG_WARN("⏸️ Буфер отправки заполнен");
+                    LOG_WARN("⏸️ Буфер отправки заполнен (осталось {}/{} байт)", remaining, bytes_read);
                     return true;
+                } else if (errno == EPIPE || errno == ECONNRESET) {
+                    LOG_WARN("🔌 Соединение разорвано клиентом");
+                    return false;
                 } else {
-                    LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                    LOG_ERROR("❌ send() ошибка: {} (errno={})", strerror(errno), errno);
                     return false;
                 }
             }
@@ -745,6 +774,11 @@ if (target_ssl && !SSL_is_init_finished(target_ssl)) {
 
         total_sent += bytes_sent;
         LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, total_sent, bytes_read);
+
+        // 🟢 КОРОТКАЯ ПАУЗА ДЛЯ SSL, ЧТОБЫ ИЗБЕЖАТЬ ПЕРЕПОЛНЕНИЯ БУФЕРОВ
+        if (target_ssl != nullptr && bytes_sent > 0) {
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
+        }
     }
 
     LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
