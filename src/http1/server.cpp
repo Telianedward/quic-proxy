@@ -914,20 +914,48 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             }
 
             // 🟥 ОБРАБОТКА ОШИБКИ ОТПРАВКИ (bytes_sent < 0)
-            if (bytes_sent < 0)
+              if (bytes_sent < 0)
+        {
+            LOG_ERROR("❌ send() вернул ошибку: errno={} ({})", errno, strerror(errno));
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                LOG_ERROR("❌ send() или SSL_write вернул ошибку: errno={} ({})", errno, strerror(errno));
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                LOG_WARN("⏸️ Буфер отправки заполнен, откладываем остальную отправку. Отправлено {}/{} байт", total_sent, response.size());
+                // ❗ Проверяем, что сокет всё ещё открыт
+                if (::fcntl(to_fd, F_GETFD) == -1 && errno == EBADF)
                 {
-                    LOG_WARN("⏸️ Буфер отправки заполнен, попробуем позже. Отправлено {}/{} байт", total_sent, bytes_read);
-                    return true; // Ждём следующего цикла
-                }
-                else
-                {
-                    LOG_ERROR("💥 Критическая ошибка отправки данных: {}", strerror(errno));
+                    LOG_ERROR("❌ Сокет {} уже закрыт, невозможно сохранить состояние отправки", to_fd);
                     return false;
                 }
+
+                // ❗ Разбиваем ответ на части по 64 КБ
+                const size_t chunk_size = 65536; // 64 КБ
+                size_t remaining = response.size() - total_sent;
+                if (remaining > chunk_size)
+                {
+                    LOG_WARN("⚠️ Размер оставшейся части {} байт превышает лимит 64 КБ. Разбиваем на части.", remaining);
+                    remaining = chunk_size;
+                }
+
+                PendingSend info{
+                    .fd = to_fd,
+                    .ptr = response.c_str(),
+                    .len = response.size(),
+                    .sent = static_cast<size_t>(total_sent)
+                };
+                pending_sends_[to_fd] = std::move(info);
+                return true;
             }
+            else if (errno == EBADF || errno == ENOTTY)
+            {
+                LOG_ERROR("❌ Сокет {} недействителен (EBADF/ENOTTY). Соединение разорвано клиентом.", to_fd);
+                return false;
+            }
+            else
+            {
+                LOG_ERROR("💥 Критическая ошибка отправки данных: {}", strerror(errno));
+                return false;
+            }
+        }
 
             // 🟢 ОБНОВЛЕНИЕ СЧЁТЧИКА ОТПРАВЛЕННЫХ БАЙТ
             total_sent += bytes_sent;
