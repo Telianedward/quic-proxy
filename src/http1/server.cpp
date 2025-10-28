@@ -966,4 +966,17 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         }
     }
+    else if (bytes_read == 0)
+    {
+        LOG_INFO("🔚 Клиент (from_fd={}) закрыл соединение", from_fd);
+        return false;
+    }
+    else
+    {
+        LOG_ERROR("❌ Ошибка чтения данных от клиента (from_fd={})", from_fd);
+        return false;
+    }
+
+    // Если мы дошли сюда — значит, данные были обработаны и соединение активно.
+    return true;
 }
