@@ -749,167 +749,209 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
         LOG_INFO("[server.cpp:495] ✅ Успешно прочитано {} байт данных от клиента через TLS", bytes_read);
     }
-        else
+    else
+    {
+        // 🟡 ЧТЕНИЕ ЧЕРЕЗ TCP (БЕЗ SSL)
+        /**
+         * @brief Прочитать данные из обычного TCP-соединения.
+         * @details recv() — системный вызов для чтения данных из сокета.
+         *          Параметры:
+         *            - from_fd: дескриптор сокета, откуда читаем.
+         *            - buffer: указатель на буфер для записи данных.
+         *            - sizeof(buffer): максимальное количество байт для чтения.
+         *            - 0: флаги — без специальных опций.
+         * @return Количество прочитанных байт, или -1 при ошибке.
+         * @note EAGAIN/EWOULDBLOCK — нормальное поведение в неблокирующем режиме.
+         */
+        bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
+        if (bytes_read < 0)
         {
-            // 🟡 ЧТЕНИЕ ЧЕРЕЗ TCP (БЕЗ SSL)
-            /**
-             * @brief Прочитать данные из обычного TCP-соединения.
-             * @details recv() — системный вызов для чтения данных из сокета.
-             *          Параметры:
-             *            - from_fd: дескриптор сокета, откуда читаем.
-             *            - buffer: указатель на буфер для записи данных.
-             *            - sizeof(buffer): максимальное количество байт для чтения.
-             *            - 0: флаги — без специальных опций.
-             * @return Количество прочитанных байт, или -1 при ошибке.
-             * @note EAGAIN/EWOULDBLOCK — нормальное поведение в неблокирующем режиме.
-             */
-            bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
-            if (bytes_read < 0)
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                LOG_DEBUG("⏳ Буфер чтения пуст, ждем...");
+                return true; // Ждём следующего цикла select()
+            }
+            else
+            {
+                // 🟥 КРИТИЧЕСКАЯ ОШИБКА — ЗАКРЫТЬ СОЕДИНЕНИЕ
+                LOG_ERROR("❌ recv() ошибка: {}", strerror(errno));
+                return false;
+            }
+        }
+    }
+    if (bytes_read > 0)
+    {
+        // Логируем факт получения данных
+        LOG_INFO("✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
+
+        // Парсим заголовки, если это первый пакет
+        if (!is_chunked)
+        {
+            std::string data(buffer, static_cast<size_t>(bytes_read));
+            size_t headers_end = data.find("\r\n\r\n");
+            if (headers_end != std::string::npos)
+            {
+                std::string headers = data.substr(0, headers_end);
+                if (headers.find("Transfer-Encoding: chunked") != std::string::npos)
                 {
-                    LOG_DEBUG("⏳ Буфер чтения пуст, ждем...");
-                    return true; // Ждём следующего цикла select()
+                    is_chunked = true;
+                    LOG_DEBUG("🟢 Обнаружен Transfer-Encoding: chunked");
+                }
+            }
+        }
+
+        // Если это chunked-ответ — обрабатываем по чанкам
+        if (is_chunked)
+        {
+            // Обработка чанков
+            std::string data(buffer, static_cast<size_t>(bytes_read));
+            size_t pos = 0;
+            while (pos < data.size())
+            {
+                if (expected_chunk_size == 0)
+                {
+                    // Читаем размер чанка
+                    size_t end_pos = data.find("\r\n", pos);
+                    if (end_pos == std::string::npos)
+                    {
+                        // Не хватает данных — сохраняем остаток
+                        chunk_buffer = data.substr(pos);
+                        break;
+                    }
+                    std::string chunk_size_str = data.substr(pos, end_pos - pos);
+                    try
+                    {
+                        expected_chunk_size = std::stoul(chunk_size_str, nullptr, 16);
+                    }
+                    catch (...)
+                    {
+                        LOG_ERROR("❌ Неверный размер чанка: {}", chunk_size_str);
+                        return false;
+                    }
+                    pos = end_pos + 2; // Пропускаем \r\n
+                }
+
+                if (expected_chunk_size > 0)
+                {
+                    // Читаем данные чанка
+                    size_t available = data.size() - pos;
+                    size_t to_read = std::min(available, expected_chunk_size - received_chunk_size);
+                    chunk_buffer.append(data.substr(pos, to_read));
+                    pos += to_read;
+                    received_chunk_size += to_read;
+
+                    if (received_chunk_size == expected_chunk_size)
+                    {
+                        // Чанк полностью получен — отправляем его
+                        LOG_DEBUG("📤 Отправка чанка размером {} байт", expected_chunk_size);
+                        // Отправляем чанк на to_fd (через SSL_write или send)
+                        ssize_t sent = 0;
+                        if (target_ssl != nullptr)
+                        {
+                            sent = SSL_write(target_ssl, chunk_buffer.c_str(), chunk_buffer.size());
+                        }
+                        else
+                        {
+                            sent = send(to_fd, chunk_buffer.c_str(), chunk_buffer.size(), 0);
+                        }
+                        if (sent < 0)
+                        {
+                            LOG_ERROR("❌ Ошибка отправки чанка: {}", strerror(errno));
+                            return false;
+                        }
+                        // Отправляем завершающий \r\n
+                        if (target_ssl != nullptr)
+                        {
+                            SSL_write(target_ssl, "\r\n", 2);
+                        }
+                        else
+                        {
+                            send(to_fd, "\r\n", 2, 0);
+                        }
+                        // Сбрасываем состояние
+                        chunk_buffer.clear();
+                        received_chunk_size = 0;
+                        expected_chunk_size = 0;
+                    }
                 }
                 else
                 {
-                    // 🟥 КРИТИЧЕСКАЯ ОШИБКА — ЗАКРЫТЬ СОЕДИНЕНИЕ
-                    LOG_ERROR("❌ recv() ошибка: {}", strerror(errno));
-                    return false;
-                }
-            }
-        }
-if (bytes_read > 0) {
-    // Логируем факт получения данных
-    LOG_INFO("✅ Получено {} байт данных от клиента (from_fd={})", bytes_read, from_fd);
-
-    // Парсим заголовки, если это первый пакет
-    if (!is_chunked) {
-        std::string data(buffer, static_cast<size_t>(bytes_read));
-        size_t headers_end = data.find("\r\n\r\n");
-        if (headers_end != std::string::npos) {
-            std::string headers = data.substr(0, headers_end);
-            if (headers.find("Transfer-Encoding: chunked") != std::string::npos) {
-                is_chunked = true;
-                LOG_DEBUG("🟢 Обнаружен Transfer-Encoding: chunked");
-            }
-        }
-    }
-
-    // Если это chunked-ответ — обрабатываем по чанкам
-    if (is_chunked) {
-        // Обработка чанков
-        std::string data(buffer, static_cast<size_t>(bytes_read));
-        size_t pos = 0;
-        while (pos < data.size()) {
-            if (expected_chunk_size == 0) {
-                // Читаем размер чанка
-                size_t end_pos = data.find("\r\n", pos);
-                if (end_pos == std::string::npos) {
-                    // Не хватает данных — сохраняем остаток
-                    chunk_buffer = data.substr(pos);
+                    // Это финальный чанк (0)
+                    if (data.substr(pos).find("0\r\n\r\n") != std::string::npos)
+                    {
+                        // Отправляем финальный чанк
+                        if (target_ssl != nullptr)
+                        {
+                            SSL_write(target_ssl, "0\r\n\r\n", 5);
+                        }
+                        else
+                        {
+                            send(to_fd, "0\r\n\r\n", 5, 0);
+                        }
+                        LOG_SUCCESS("🎉 Успешно передан финальный чанк");
+                        return false; // Закрываем соединение
+                    }
                     break;
                 }
-                std::string chunk_size_str = data.substr(pos, end_pos - pos);
-                try {
-                    expected_chunk_size = std::stoul(chunk_size_str, nullptr, 16);
-                } catch (...) {
-                    LOG_ERROR("❌ Неверный размер чанка: {}", chunk_size_str);
-                    return false;
-                }
-                pos = end_pos + 2; // Пропускаем \r\n
-            }
-
-            if (expected_chunk_size > 0) {
-                // Читаем данные чанка
-                size_t available = data.size() - pos;
-                size_t to_read = std::min(available, expected_chunk_size - received_chunk_size);
-                chunk_buffer.append(data.substr(pos, to_read));
-                pos += to_read;
-                received_chunk_size += to_read;
-
-                if (received_chunk_size == expected_chunk_size) {
-                    // Чанк полностью получен — отправляем его
-                    LOG_DEBUG("📤 Отправка чанка размером {} байт", expected_chunk_size);
-                    // Отправляем чанк на to_fd (через SSL_write или send)
-                    ssize_t sent = 0;
-                    if (target_ssl != nullptr) {
-                        sent = SSL_write(target_ssl, chunk_buffer.c_str(), chunk_buffer.size());
-                    } else {
-                        sent = send(to_fd, chunk_buffer.c_str(), chunk_buffer.size(), 0);
-                    }
-                    if (sent < 0) {
-                        LOG_ERROR("❌ Ошибка отправки чанка: {}", strerror(errno));
-                        return false;
-                    }
-                    // Отправляем завершающий \r\n
-                    if (target_ssl != nullptr) {
-                        SSL_write(target_ssl, "\r\n", 2);
-                    } else {
-                        send(to_fd, "\r\n", 2, 0);
-                    }
-                    // Сбрасываем состояние
-                    chunk_buffer.clear();
-                    received_chunk_size = 0;
-                    expected_chunk_size = 0;
-                }
-            } else {
-                // Это финальный чанк (0)
-                if (data.substr(pos).find("0\r\n\r\n") != std::string::npos) {
-                    // Отправляем финальный чанк
-                    if (target_ssl != nullptr) {
-                        SSL_write(target_ssl, "0\r\n\r\n", 5);
-                    } else {
-                        send(to_fd, "0\r\n\r\n", 5, 0);
-                    }
-                    LOG_SUCCESS("🎉 Успешно передан финальный чанк");
-                    return false; // Закрываем соединение
-                }
-                break;
             }
         }
-    } else {
-        // Обычная передача (не chunked)
-        // Ваш текущий код отправки данных
-        ssize_t total_sent = 0;
-        while (total_sent < bytes_read) {
-            size_t remaining = static_cast<size_t>(bytes_read - total_sent);
-            ssize_t bytes_sent = 0;
+        else
+        {
+            // Обычная передача (не chunked)
+            // Ваш текущий код отправки данных
+            ssize_t total_sent = 0;
+            while (total_sent < bytes_read)
+            {
+                size_t remaining = static_cast<size_t>(bytes_read - total_sent);
+                ssize_t bytes_sent = 0;
 
-            if (target_ssl != nullptr) {
-                bytes_sent = SSL_write(target_ssl, buffer + total_sent, remaining);
-            } else {
-                bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
-            }
+                if (target_ssl != nullptr)
+                {
+                    bytes_sent = SSL_write(target_ssl, buffer + total_sent, remaining);
+                }
+                else
+                {
+                    bytes_sent = send(to_fd, buffer + total_sent, remaining, 0);
+                }
 
-            if (bytes_sent <= 0) {
-                // Обработка ошибок
-                if (target_ssl != nullptr) {
-                    int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                        LOG_WARN("⏸️ SSL_write требует повторной попытки");
-                        return true;
-                    } else {
-                        LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
-                        return false;
+                if (bytes_sent <= 0)
+                {
+                    // Обработка ошибок
+                    if (target_ssl != nullptr)
+                    {
+                        int ssl_error = SSL_get_error(target_ssl, bytes_sent);
+                        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                        {
+                            LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                            return true;
+                        }
+                        else
+                        {
+                            LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
+                            return false;
+                        }
                     }
-                } else {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        LOG_WARN("⏸️ Буфер отправки заполнен");
-                        return true;
-                    } else {
-                        LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
-                        return false;
+                    else
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            LOG_WARN("⏸️ Буфер отправки заполнен");
+                            return true;
+                        }
+                        else
+                        {
+                            LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                            return false;
+                        }
                     }
                 }
-            }
 
-            total_sent += bytes_sent;
-            LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
+                total_sent += bytes_sent;
+                LOG_DEBUG("📈 total_sent обновлён: {} (отправлено {} байт)", total_sent, bytes_sent);
+            }
+            LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
         }
-        LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
     }
-}
     // // 🔵 ОБРАБОТКА УСПЕШНОГО ЧТЕНИЯ (bytes_read > 0)
     // if (bytes_read > 0)
     // {
