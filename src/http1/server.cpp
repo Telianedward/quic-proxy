@@ -37,6 +37,12 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
         return;
     }
 
+    // 🟢 НАСТРОЙКИ SSL ДО ЗАГРУЗКИ СЕРТИФИКАТОВ
+    SSL_CTX_set_options(ssl_ctx_, SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+    SSL_CTX_set_mode(ssl_ctx_, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    SSL_CTX_set_read_ahead(ssl_ctx_, 1);
+
+
     // 🟢 ИСПОЛЬЗУЕМ ПОДГОТОВЛЕННЫЕ ФАЙЛЫ ИЗ /opt/quic-proxy/
     const char *cert_path = "/opt/quic-proxy/fullchain.pem";
     const char *key_path = "/opt/quic-proxy/privkey.pk8";
@@ -537,7 +543,7 @@ void Http1Server::handle_io_events() noexcept
             continue;
         }
 
-        // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+       // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
             LOG_INFO("[server.cpp:375] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
@@ -552,8 +558,30 @@ void Http1Server::handle_io_events() noexcept
 
             if (!keep_alive)
             {
-                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-          if (is_ssl && info.ssl)
+                // 🟢 ОБРАБОТКА SSL SHUTDOWN ПЕРЕД ЗАКРЫТИЕМ
+                if (is_ssl && info.ssl)
+                {
+                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
+                    int shutdown_state = SSL_get_shutdown(info.ssl);
+                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+                    {
+                        LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                    }
+                    else
+                    {
+                        LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN("⚠️ SSL_shutdown() вернул ошибку: {}",
+                                    ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO("✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
+                    }
+                }
 
                 // 🟢 Закрываем сокеты
                 ::close(client_fd);
@@ -741,7 +769,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         } else {
             bytes_sent = send(to_fd, buffer + total_sent, chunk_size, MSG_NOSIGNAL);
         }
-
+        // В методе forward_data после SSL_write можно добавить:
+        if (target_ssl != nullptr) {
+            int pending = SSL_pending(target_ssl);
+            if (pending > 0) {
+                LOG_DEBUG("📊 SSL_pending: {} байт в буфере", pending);
+            }
+        }
         if (bytes_sent <= 0) {
             if (target_ssl != nullptr) {
                 int ssl_error = SSL_get_error(target_ssl, bytes_sent);
