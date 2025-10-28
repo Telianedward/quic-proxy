@@ -31,7 +31,8 @@
 #include "../logger/logger.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
+#include <memory>
+#include <queue>
 /**
  * @brief Класс HTTP/1.1 сервера.
  *
