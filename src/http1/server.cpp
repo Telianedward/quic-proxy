@@ -90,6 +90,8 @@ Http1Server::~Http1Server()
 {
     if (ssl_ctx_)
     {
+           SSL_CTX_set_max_send_fragment(ssl_ctx_, 16384); // 16KB фрагменты
+    SSL_CTX_set_read_ahead(ssl_ctx_, 1); // Включить read-ahead
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
     }
@@ -551,27 +553,20 @@ void Http1Server::handle_io_events() noexcept
             if (!keep_alive)
             {
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-                if (is_ssl && info.ssl)
-                {
-                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
-                    int shutdown_state = SSL_get_shutdown(info.ssl);
-                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
-                    {
-                        LOG_DEBUG("[server.cpp:575] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
-                    }
-                    else
-                    {
-                        LOG_DEBUG("[server.cpp:578] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+               // В методе handle_io_events, замените блок SSL_shutdown:
+                if (is_ssl && info.ssl) {
+                    // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
+                    if (SSL_is_init_finished(info.ssl)) {
+                        LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
                         int shutdown_result = SSL_shutdown(info.ssl);
-                        if (shutdown_result < 0)
-                        {
-                            LOG_WARN("[server.cpp:581] ⚠️ SSL_shutdown() вернул ошибку: {}",
-                                     ERR_error_string(ERR_get_error(), nullptr));
+                        if (shutdown_result < 0) {
+                            int ssl_error = SSL_get_error(info.ssl, shutdown_result);
+                            if (ssl_error != SSL_ERROR_SYSCALL && ssl_error != SSL_ERROR_SSL) {
+                                LOG_DEBUG("⚠️ SSL_shutdown() в процессе: {}", ssl_error);
+                            }
                         }
-                        else
-                        {
-                            LOG_INFO("[server.cpp:584] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
-                        }
+                    } else {
+                        LOG_DEBUG("⏸️ SSL не готов к shutdown - пропускаем");
                     }
                 }
 
@@ -730,6 +725,12 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     while (total_sent < bytes_read) {
         size_t remaining = static_cast<size_t>(bytes_read - total_sent);
         ssize_t bytes_sent = 0;
+
+// В методе forward_data перед SSL_write:
+if (target_ssl && !SSL_is_init_finished(target_ssl)) {
+    LOG_ERROR("❌ SSL соединение не готово для записи");
+    return false;
+}
 
         if (target_ssl != nullptr) {
             // 🟢 ИСПОЛЬЗУЕМ SSL_write БЕЗ АНАЛИЗА ДАННЫХ
