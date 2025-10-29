@@ -818,7 +818,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                     int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                     {
-                        LOG_WARN("⏸️ SSL_write требует повторной попытки (буфер заполнен)");
+                        LOG_WARN("⏸️ SSL_write требует повторной попытки");
                         return true; // Оставляем в очереди
                     }
                     else
