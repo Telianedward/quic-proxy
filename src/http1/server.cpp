@@ -205,12 +205,12 @@ bool Http1Server::run()
             handle_io_events();
         }
 
-        // Проверка таймаутов
+    // Проверка таймаутов
         time_t now = time(nullptr);
         for (auto it = timeouts_.begin(); it != timeouts_.end();)
         {
-            if (now - it->second > 30)
-            { // Таймаут 30 секунд
+            if (now - it->second > 60) // 👈 Увеличенный таймаут до 60 секунд
+            {
                 int client_fd = it->first;
                 ::close(client_fd);
                 connections_.erase(client_fd);
@@ -787,10 +787,9 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     // 🟢 ПРОСТАЯ ПЕРЕДАЧА ДАННЫХ БЕЗ CHUNKED PROCESSING
     SSL *target_ssl = get_ssl_for_fd(to_fd);
 
-    // 🟠 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
+        // 🟢 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
     if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty())
     {
-        // Есть незавершённые данные — обрабатываем их первыми
         auto &pending_queue = pending_sends_[to_fd];
         while (!pending_queue.empty())
         {
@@ -801,7 +800,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                 continue;
             }
 
-            // Повторяем отправку
+            // 🟠 ПОПЫТКА ОТПРАВИТЬ ОСТАВШИЕСЯ ДАННЫЕ
             ssize_t bytes_sent = 0;
             if (target_ssl != nullptr)
             {
@@ -819,7 +818,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                     int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                     {
-                        LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                        LOG_WARN("⏸️ SSL_write требует повторной попытки (буфер заполнен)");
                         return true; // Оставляем в очереди
                     }
                     else
@@ -845,7 +844,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                 }
             }
 
-            pending.sent += bytes_sent;
+            pending.sent += static_cast<size_t>(bytes_sent);
             LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, pending.sent, pending.len);
 
             if (pending.sent >= pending.len)
