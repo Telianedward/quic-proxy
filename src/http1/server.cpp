@@ -30,7 +30,7 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     OpenSSL_add_all_algorithms();
 
 
-    chunked_complete_[client_fd] = false; // Для нового соединения
+    // chunked_complete_[client_fd] = false; // Для нового соединения
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
     if (!ssl_ctx_)
@@ -402,6 +402,8 @@ void Http1Server::handle_new_connection() noexcept
     info.ssl = ssl;
     info.handshake_done = false; // 👈 Пока не завершён
     connections_[client_fd] = info;
+    // 🟢 ИНИЦИАЛИЗИРУЕМ chunked_complete_ ДЛЯ НОВОГО СОЕДИНЕНИЯ
+    chunked_complete_[client_fd] = false;
 
     // 🟢 УСТАНАВЛИВАЕМ ТАЙМАУТ
     timeouts_[client_fd] = time(nullptr);
