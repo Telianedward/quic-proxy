@@ -537,7 +537,7 @@ void Http1Server::handle_io_events() noexcept
             continue;
         }
 
-               // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+             // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
             LOG_INFO(" 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
@@ -586,7 +586,7 @@ void Http1Server::handle_io_events() noexcept
                     }
                     else
                     {
-                        continue;// Остались неотправленные данные
+                        continue; // Остались неотправленные данные
                     }
                 }
             }
@@ -640,7 +640,6 @@ void Http1Server::handle_io_events() noexcept
                 timeouts_[client_fd] = time(nullptr);
             }
         }
-
         // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
         if (FD_ISSET(info.backend_fd, &read_fds))
         {
