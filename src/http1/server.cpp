@@ -537,48 +537,77 @@ void Http1Server::handle_io_events() noexcept
             continue;
         }
 
-         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-        if (FD_ISSET(client_fd, &read_fds))
+        // 🟡 ПЕРЕДАЧА ДАННЫХ ОТ СЕРВЕРА К КЛИЕНТУ
+        if (FD_ISSET(info.backend_fd, &read_fds))
         {
-            LOG_INFO(" 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
-            LOG_DEBUG("🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
+            LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
 
-            if (info.ssl != nullptr)
+            // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
+            if (info.ssl != nullptr && !info.handshake_done)
             {
-                LOG_DEBUG(" 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
+                LOG_WARN("❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
+                continue; // Пропускаем эту итерацию, ждём завершения handshake
             }
 
-            // 🟢 СНАЧАЛА ПРОВЕРЯЕМ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ ДЛЯ БЭКЕНДА
-            if (!pending_sends_.empty() && pending_sends_.find(info.backend_fd) != pending_sends_.end() && !pending_sends_[info.backend_fd].empty())
+            // 🟢 СНАЧАЛА ПРОВЕРЯЕМ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ ДЛЯ КЛИЕНТА
+            if (!pending_sends_.empty() && pending_sends_.find(client_fd) != pending_sends_.end() && !pending_sends_[client_fd].empty())
             {
-                auto &pending_queue = pending_sends_[info.backend_fd];
+                auto &pending_queue = pending_sends_[client_fd];
                 while (!pending_queue.empty())
                 {
                     auto &pending = pending_queue.front();
-                    if (pending.fd != info.backend_fd)
+                    if (pending.fd != client_fd)
                     {
                         pending_queue.pop();
                         continue;
                     }
 
-                    ssize_t bytes_sent = send(pending.fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
+                    SSL *target_ssl = get_ssl_for_fd(pending.fd);
+                    ssize_t bytes_sent = 0;
+                    if (target_ssl != nullptr)
+                    {
+                        bytes_sent = SSL_write(target_ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
+                    }
+                    else
+                    {
+                        bytes_sent = send(pending.fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
+                    }
+
                     if (bytes_sent <= 0)
                     {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        if (target_ssl != nullptr)
                         {
-                            LOG_WARN("⏸️ Буфер отправки на бэкенд заполнен");
-                            return true; // Оставляем в очереди
+                            int ssl_error = SSL_get_error(target_ssl, bytes_sent);
+                            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                            {
+                                LOG_WARN("⏸️ SSL_write требует повторной попытки");
+                                return true; // Оставляем в очереди
+                            }
+                            else
+                            {
+                                LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
+                                pending_queue.pop(); // Удаляем из очереди при фатальной ошибке
+                                return false;
+                            }
                         }
                         else
                         {
-                            LOG_ERROR("❌ send() ошибка при отправке на бэкенд: {}", strerror(errno));
-                            pending_queue.pop();
-                            return false;
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                LOG_WARN("⏸️ Буфер отправки заполнен");
+                                return true;
+                            }
+                            else
+                            {
+                                LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
+                                pending_queue.pop();
+                                return false;
+                            }
                         }
                     }
 
                     pending.sent += bytes_sent;
-                    LOG_DEBUG("📈 Отправлено {} байт на бэкенд, всего {}/{}", bytes_sent, pending.sent, pending.len);
+                    LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, pending.sent, pending.len);
 
                     if (pending.sent >= pending.len)
                     {
@@ -591,31 +620,33 @@ void Http1Server::handle_io_events() noexcept
                 }
             }
 
-            // 🟢 ТЕПЕРЬ ЧИТАЕМ НОВЫЕ ДАННЫЕ ОТ КЛИЕНТА
-            bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
+            // 🟢 ТЕПЕРЬ ЧИТАЕМ НОВЫЕ ДАННЫЕ ОТ БЭКЕНДА
+            bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
 
             if (!keep_alive)
             {
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
                 if (is_ssl && info.ssl)
                 {
-                    // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
-                    if (SSL_is_init_finished(info.ssl))
+                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
+                    int shutdown_state = SSL_get_shutdown(info.ssl);
+                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
                     {
-                        LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                        int shutdown_result = SSL_shutdown(info.ssl);
-                        if (shutdown_result < 0)
-                        {
-                            int ssl_error = SSL_get_error(info.ssl, shutdown_result);
-                            if (ssl_error != SSL_ERROR_SYSCALL && ssl_error != SSL_ERROR_SSL)
-                            {
-                                LOG_DEBUG("⚠️ SSL_shutdown() в процессе: {}", ssl_error);
-                            }
-                        }
+                        LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
                     }
                     else
                     {
-                        LOG_DEBUG("⏸️ SSL не готов к shutdown - пропускаем");
+                        LOG_DEBUG(" 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN(" ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                     ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO(" ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
                     }
                 }
 
