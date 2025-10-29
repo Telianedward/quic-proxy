@@ -537,7 +537,7 @@ void Http1Server::handle_io_events() noexcept
             continue;
         }
 
-        // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+         // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
             LOG_INFO(" 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
@@ -548,12 +548,55 @@ void Http1Server::handle_io_events() noexcept
                 LOG_DEBUG(" 🔐 SSL-соединение активно. Подготовка к чтению данных через SSL");
             }
 
+            // 🟢 СНАЧАЛА ПРОВЕРЯЕМ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ ДЛЯ БЭКЕНДА
+            if (!pending_sends_.empty() && pending_sends_.find(info.backend_fd) != pending_sends_.end() && !pending_sends_[info.backend_fd].empty())
+            {
+                auto &pending_queue = pending_sends_[info.backend_fd];
+                while (!pending_queue.empty())
+                {
+                    auto &pending = pending_queue.front();
+                    if (pending.fd != info.backend_fd)
+                    {
+                        pending_queue.pop();
+                        continue;
+                    }
+
+                    ssize_t bytes_sent = send(pending.fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
+                    if (bytes_sent <= 0)
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            LOG_WARN("⏸️ Буфер отправки на бэкенд заполнен");
+                            return true; // Оставляем в очереди
+                        }
+                        else
+                        {
+                            LOG_ERROR("❌ send() ошибка при отправке на бэкенд: {}", strerror(errno));
+                            pending_queue.pop();
+                            return false;
+                        }
+                    }
+
+                    pending.sent += bytes_sent;
+                    LOG_DEBUG("📈 Отправлено {} байт на бэкенд, всего {}/{}", bytes_sent, pending.sent, pending.len);
+
+                    if (pending.sent >= pending.len)
+                    {
+                        pending_queue.pop(); // Успешно отправили всю порцию
+                    }
+                    else
+                    {
+                        return true; // Остались неотправленные данные
+                    }
+                }
+            }
+
+            // 🟢 ТЕПЕРЬ ЧИТАЕМ НОВЫЕ ДАННЫЕ ОТ КЛИЕНТА
             bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
 
             if (!keep_alive)
             {
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-                // В методе handle_io_events, замените блок SSL_shutdown:
                 if (is_ssl && info.ssl)
                 {
                     // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
