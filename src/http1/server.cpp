@@ -772,193 +772,10 @@ SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
 /**
  * @brief Передаёт данные между двумя сокетами (клиент ↔ бэкенд) в неблокирующем режиме, с поддержкой TLS.
  */
-// bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
-// {
-//     LOG_DEBUG(" 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
-//               from_fd, to_fd, ssl ? "true" : "false");
-
-//     // 🟡 ЧТЕНИЕ ДАННЫХ
-//     char buffer[8192];
-//     bool use_ssl = (ssl != nullptr);
-
-//     ssize_t bytes_read = 0;
-//     if (use_ssl)
-//     {
-//         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
-//     }
-//     else
-//     {
-//         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
-//     }
-
-//     if (bytes_read <= 0)
-//     {
-//         // Обработка ошибок (существующий код)
-//         if (use_ssl)
-//         {
-//             int ssl_error = SSL_get_error(ssl, bytes_read);
-//             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-//             {
-//                 return true;
-//             }
-//         }
-//         else
-//         {
-//             if (errno == EAGAIN || errno == EWOULDBLOCK)
-//             {
-//                 return true;
-//             }
-//         }
-//         return false;
-//     }
-
-//     LOG_INFO("✅ Получено {} байт данных от {} (fd={})", bytes_read, use_ssl ? "клиента" : "сервера", from_fd);
-
-//     // 🟢 ПРОСТАЯ ПЕРЕДАЧА ДАННЫХ БЕЗ CHUNKED PROCESSING
-//     SSL *target_ssl = get_ssl_for_fd(to_fd);
-
-//         // 🟢 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
-//     if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty())
-//     {
-//         auto &pending_queue = pending_sends_[to_fd];
-//         while (!pending_queue.empty())
-//         {
-//             auto &pending = pending_queue.front();
-//             if (pending.fd != to_fd)
-//             {
-//                 pending_queue.pop();
-//                 continue;
-//             }
-
-//             // 🟠 ПОПЫТКА ОТПРАВИТЬ ОСТАВШИЕСЯ ДАННЫЕ
-//             ssize_t bytes_sent = 0;
-//             if (target_ssl != nullptr)
-//             {
-//                 bytes_sent = SSL_write(target_ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
-//             }
-//             else
-//             {
-//                 bytes_sent = send(to_fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
-//             }
-
-//             if (bytes_sent <= 0)
-//             {
-//                 if (bytes_sent > 0)
-// {
-//                 // 🟢 ПРОВЕРКА: СОДЕРЖИТ ЛИ ОТПРАВЛЕННЫЕ ДАННЫЕ ЗАВЕРШАЮЩИЙ ЧАНК?
-//                 std::string sent_data(buffer, bytes_read);
-//                 if (sent_data.find("0\r\n\r\n") != std::string::npos)
-//                 {
-//                     LOG_INFO("✅ Обнаружен завершающий чанк '0\\r\\n\\r\\n'. Отметим соединение как завершённое.");
-//                     chunked_complete_[to_fd] = true;
-//                 }
-//             }
-//                 if (target_ssl != nullptr)
-//                 {
-//                     int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-//                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-//                     {
-//                         LOG_WARN("⏸️ SSL_write требует повторной попытки");
-//                         return true; // Оставляем в очереди
-//                     }
-//                     else
-//                     {
-//                         LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
-//                         pending_queue.pop(); // Удаляем из очереди при фатальной ошибке
-//                         return false;
-//                     }
-//                 }
-//                 else
-//                 {
-//                     if (errno == EAGAIN || errno == EWOULDBLOCK)
-//                     {
-//                         LOG_WARN("⏸️ Буфер отправки заполнен");
-//                         return true;
-//                     }
-//                     else
-//                     {
-//                         LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
-//                         pending_queue.pop();
-//                         return false;
-//                     }
-//                 }
-//             }
-
-//             pending.sent += static_cast<size_t>(bytes_sent);
-//             LOG_DEBUG("📈 Отправлено {} байт, всего {}/{}", bytes_sent, pending.sent, pending.len);
-
-//             if (pending.sent >= pending.len)
-//             {
-//                 pending_queue.pop(); // Успешно отправили всю порцию
-//             }
-//             else
-//             {
-//                 return true; // Остались неотправленные данные
-//             }
-//         }
-//     }
-
-//     // 🟢 ЗАПИСЬ НОВЫХ ДАННЫХ
-//     // Создаем новый элемент для отправки
-//     PendingSend new_send;
-//     new_send.fd = to_fd;
-//     new_send.len = static_cast<size_t>(bytes_read);
-//     new_send.sent = 0;
-//     new_send.data = std::make_unique<char[]>(new_send.len);
-//     std::memcpy(new_send.data.get(), buffer, new_send.len);
-
-//     // Пытаемся отправить сразу
-//     ssize_t bytes_sent = 0;
-//     if (target_ssl != nullptr)
-//     {
-//         bytes_sent = SSL_write(target_ssl, new_send.data.get(), new_send.len);
-//     }
-//     else
-//     {
-//         bytes_sent = send(to_fd, new_send.data.get(), new_send.len, MSG_NOSIGNAL);
-//     }
-
-//     if (bytes_sent <= 0)
-//     {
-//         if (target_ssl != nullptr)
-//         {
-//             int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-//             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-//             {
-//                 LOG_WARN("⏸️ SSL_write требует повторной попытки");
-//                 // Добавляем в очередь незавершённых отправок
-//                 pending_sends_[to_fd].push(std::move(new_send));
-//                 return true;
-//             }
-//             else
-//             {
-//                 LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
-//                 return false;
-//             }
-//         }
-//         else
-//         {
-//             if (errno == EAGAIN || errno == EWOULDBLOCK)
-//             {
-//                 LOG_WARN("⏸️ Буфер отправки заполнен");
-//                 pending_sends_[to_fd].push(std::move(new_send));
-//                 return true;
-//             }
-//             else
-//             {
-//                 LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
-//                 return false;
-//             }
-//         }
-//     }
-
-//     // Успешно отправили всё сразу
-//     LOG_SUCCESS("🎉 Успешно передано {} байт от {} к {}", bytes_read, from_fd, to_fd);
-//     return true;
-// }
 bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 {
-    LOG_DEBUG("🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})", from_fd, to_fd, ssl ? "true" : "false");
+    LOG_DEBUG(" 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
+              from_fd, to_fd, ssl ? "true" : "false");
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
     char buffer[8192];
@@ -997,7 +814,10 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
     LOG_INFO("✅ Получено {} байт данных от {} (fd={})", bytes_read, use_ssl ? "клиента" : "сервера", from_fd);
 
-    // 🟢 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
+    // 🟢 ПРОСТАЯ ПЕРЕДАЧА ДАННЫХ БЕЗ CHUNKED PROCESSING
+    SSL *target_ssl = get_ssl_for_fd(to_fd);
+
+        // 🟢 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
     if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty())
     {
         auto &pending_queue = pending_sends_[to_fd];
@@ -1012,9 +832,9 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
             // 🟠 ПОПЫТКА ОТПРАВИТЬ ОСТАВШИЕСЯ ДАННЫЕ
             ssize_t bytes_sent = 0;
-            if (ssl != nullptr)
+            if (target_ssl != nullptr)
             {
-                bytes_sent = SSL_write(ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
+                bytes_sent = SSL_write(target_ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
             }
             else
             {
@@ -1023,9 +843,19 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
             if (bytes_sent <= 0)
             {
-                if (ssl != nullptr)
+                if (bytes_sent > 0)
+{
+                // 🟢 ПРОВЕРКА: СОДЕРЖИТ ЛИ ОТПРАВЛЕННЫЕ ДАННЫЕ ЗАВЕРШАЮЩИЙ ЧАНК?
+                std::string sent_data(buffer, bytes_read);
+                if (sent_data.find("0\r\n\r\n") != std::string::npos)
                 {
-                    int ssl_error = SSL_get_error(ssl, bytes_sent);
+                    LOG_INFO("✅ Обнаружен завершающий чанк '0\\r\\n\\r\\n'. Отметим соединение как завершённое.");
+                    chunked_complete_[to_fd] = true;
+                }
+            }
+                if (target_ssl != nullptr)
+                {
+                    int ssl_error = SSL_get_error(target_ssl, bytes_sent);
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                     {
                         LOG_WARN("⏸️ SSL_write требует повторной попытки");
@@ -1079,9 +909,9 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
     // Пытаемся отправить сразу
     ssize_t bytes_sent = 0;
-    if (ssl != nullptr)
+    if (target_ssl != nullptr)
     {
-        bytes_sent = SSL_write(ssl, new_send.data.get(), new_send.len);
+        bytes_sent = SSL_write(target_ssl, new_send.data.get(), new_send.len);
     }
     else
     {
@@ -1090,9 +920,9 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
 
     if (bytes_sent <= 0)
     {
-        if (ssl != nullptr)
+        if (target_ssl != nullptr)
         {
-            int ssl_error = SSL_get_error(ssl, bytes_sent);
+            int ssl_error = SSL_get_error(target_ssl, bytes_sent);
             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
             {
                 LOG_WARN("⏸️ SSL_write требует повторной попытки");
