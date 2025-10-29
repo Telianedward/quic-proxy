@@ -567,13 +567,13 @@ void Http1Server::handle_io_events() noexcept
                         if (errno == EAGAIN || errno == EWOULDBLOCK)
                         {
                             LOG_WARN("⏸️ Буфер отправки на бэкенд заполнен");
-                            return true; // Оставляем в очереди
+                            continue; // Оставляем в очереди
                         }
                         else
                         {
                             LOG_ERROR("❌ send() ошибка при отправке на бэкенд: {}", strerror(errno));
                             pending_queue.pop();
-                            return false;
+                            continue;
                         }
                     }
 
@@ -586,7 +586,7 @@ void Http1Server::handle_io_events() noexcept
                     }
                     else
                     {
-                        return true; // Остались неотправленные данные
+                        continue;// Остались неотправленные данные
                     }
                 }
             }
