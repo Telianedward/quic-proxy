@@ -79,6 +79,9 @@ struct PendingSend
 };
 // 🟢 Карта незавершённых отправок.
 std::unordered_map<int, std::queue<PendingSend>> pending_sends_; ///< Ключ — client_fd
+
+// В файле server.hpp, в классе Http1Server, после pending_sends_
+std::unordered_map<int, bool> chunked_complete_; // Ключ — client_fd, значение — true, если чанки завершены
     /**
      * @brief Карта незавершённых отправок.
      *
