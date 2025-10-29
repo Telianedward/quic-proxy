@@ -581,13 +581,13 @@ void Http1Server::handle_io_events() noexcept
                             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                             {
                                 LOG_WARN("⏸️ SSL_write требует повторной попытки");
-                                return true; // Оставляем в очереди
+                                continue; // Оставляем в очереди
                             }
                             else
                             {
                                 LOG_ERROR("❌ SSL_write ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                                 pending_queue.pop(); // Удаляем из очереди при фатальной ошибке
-                                return false;
+                               continue;
                             }
                         }
                         else
@@ -595,13 +595,13 @@ void Http1Server::handle_io_events() noexcept
                             if (errno == EAGAIN || errno == EWOULDBLOCK)
                             {
                                 LOG_WARN("⏸️ Буфер отправки заполнен");
-                                return true;
+                                continue;
                             }
                             else
                             {
                                 LOG_ERROR("❌ send() ошибка: {}", strerror(errno));
                                 pending_queue.pop();
-                                return false;
+                                continue;
                             }
                         }
                     }
@@ -615,7 +615,7 @@ void Http1Server::handle_io_events() noexcept
                     }
                     else
                     {
-                        return true; // Остались неотправленные данные
+                        continue;// Остались неотправленные данные
                     }
                 }
             }
