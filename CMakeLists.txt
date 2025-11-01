@@ -30,10 +30,10 @@ add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 # add_compile_options(-Wno-reorder)
 
 # Поиск библиотеки fmt
-find_package(fmt CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED COMPONENTS fmt)
 
 # Поиск и использование OpenSSL
-find_package(OpenSSL 3.0 REQUIRED)
+find_package(OpenSSL 3.0 REQUIRED COMPONENTS SSL Crypto)
 # Добавляем include-директории OpenSSL
 # target_include_directories(quic_proxy PRIVATE ${OPENSSL_INCLUDE_DIR})
 
