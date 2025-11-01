@@ -12,7 +12,7 @@
  * @version 1.0
  * @license MIT
  */
-#include "../../include/http1/server.hpp"
+#include "server.hpp"
 #include <cstring>
 #include <algorithm>
 #include <sstream>
