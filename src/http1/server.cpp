@@ -777,7 +777,16 @@ SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
     {
         if (conn.first == fd)
         {
-            return conn.second.ssl;
+            // Проверяем, что SSL-объект существует
+            if (conn.second.ssl != nullptr)
+            {
+                return conn.second.ssl;
+            }
+            else
+            {
+                LOG_WARN("⚠️ Найден fd={}, но SSL-объект равен nullptr", fd);
+                return nullptr;
+            }
         }
     }
     return nullptr;
