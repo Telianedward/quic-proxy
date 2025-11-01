@@ -645,12 +645,12 @@ void Http1Server::handle_io_events() noexcept
                                      client_fd, ERR_error_string(ERR_get_error(), nullptr));
                         }
                     }
-                    else
+                   else
                     {
                         // Ошибка
-                        int ssl_error = SSL_get_error(info.ssl, shutdown_result);
-                        LOG_ERROR("❌ SSL_shutdown() ошибка: {} (errno={})",
-                                  ERR_error_string(ERR_get_error(), nullptr), errno);
+                        int shutdown_error = SSL_get_error(info.ssl, shutdown_result);
+                        LOG_ERROR("❌ SSL_shutdown() ошибка: {} (код={})",
+                                ERR_error_string(shutdown_error, nullptr), shutdown_error);
                     }
                 }
                 else
