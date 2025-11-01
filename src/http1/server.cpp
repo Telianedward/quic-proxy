@@ -17,13 +17,6 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-struct ConnectionInfo
-{
-    int backend_fd;
-    SSL *ssl;
-    bool handshake_done;
-    bool logged_handshake_want; // 👈 Новый флаг
-};
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
@@ -487,7 +480,7 @@ void Http1Server::handle_io_events() noexcept
             if (ssl_accept_result <= 0)
             {
                 int ssl_error = SSL_get_error(info.ssl, ssl_accept_result);
-                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+              if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                 {
                     // 🟡 ЛОГИРОВАНИЕ ТЕКУЩЕГО СОСТОЯНИЯ SSL
                     LOG_DEBUG("🔒 SSL state: {}", SSL_state_string_long(info.ssl));
@@ -521,19 +514,19 @@ void Http1Server::handle_io_events() noexcept
                         }
                     }
 
-                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                    // 🟢 Не логируем каждый раз — только при первом входе в handshake
+                    if (!info.handshake_done && !info.logged_handshake_want)
                     {
-                        // Не логируем каждый раз — только при первом входе в handshake
-                        if (!info.handshake_done)
-                        {
-                            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
-                        }
-                        return true; // Ждём следующего цикла
+                        LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+                        info.logged_handshake_want = true; // 👈 Установка флага
                     }
-                    continue; // Ждём следующего цикла
+                    return; // ✅ Функция void — return без значения
                 }
                 else
                 {
+                    // 🟢 Сброс флага при новой попытке handshake
+                    info.logged_handshake_want = false;
+
                     LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
                     SSL_free(info.ssl);
                     connections_.erase(client_fd);
@@ -796,8 +789,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     LOG_DEBUG(" 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})",
               from_fd, to_fd, ssl ? "true" : "false");
 
-    // 🟡 ЧТЕНИЕ ДАННЫХ
-     // 🟡 ЧТЕНИЕ ДАННЫХ
+   // 🟡 ЧТЕНИЕ ДАННЫХ
     char buffer[8192];
     bool use_ssl = (ssl != nullptr);
 
@@ -822,7 +814,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             else
             {
                 LOG_ERROR("[READ] ❌ Фатальная ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
-                return false;
+                return false; // ✅ Добавлено
             }
         }
         else if (bytes_read == 0)
@@ -835,7 +827,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_INFO("[READ] ✅ Прочитано {} байт через SSL", bytes_read);
         }
     }
-    else
+   else
     {
         LOG_INFO("[READ] 📥 Попытка чтения через recv из fd={}", from_fd);
         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
@@ -849,7 +841,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             else
             {
                 LOG_ERROR("[READ] ❌ recv ошибка: {} (errno={})", strerror(errno), errno);
-                return false;
+                return false; // ✅ Добавлено
             }
         }
         else if (bytes_read == 0)
@@ -862,39 +854,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             LOG_INFO("[READ] ✅ Прочитано {} байт через recv", bytes_read);
         }
     }
-
+    // 🛑 Проверка: есть ли данные для отправки?
     if (bytes_read <= 0)
     {
-        LOG_DEBUG("[READ] 🛑 Обработка ошибки чтения или закрытия соединения");
-
-        if (use_ssl)
-        {
-            int ssl_error = SSL_get_error(ssl, bytes_read);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-            {
-                LOG_WARN("[READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
-                return true;
-            }
-            else
-            {
-                LOG_ERROR("[READ] ❌ Фатальная ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
-                return false;
-            }
-        }
-        else
-        {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-            {
-                LOG_WARN("[READ] ⏳ recv() вернул EAGAIN/EWOULDBLOCK — буфер пуст");
-                return true;
-            }
-            else
-            {
-                LOG_ERROR("[READ] ❌ Фатальная ошибка recv(): {}", strerror(errno));
-                return false;
-            }
-        }
+        LOG_WARN("[FORWARD] ❗ Нет данных для отправки — завершаем соединение");
+        return false;
     }
+
 
     LOG_INFO("✅ Получено {} байт данных от {} (fd={})",
              bytes_read, use_ssl ? "клиента" : "сервера", from_fd);

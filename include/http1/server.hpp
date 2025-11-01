@@ -109,10 +109,11 @@ std::unordered_map<int, bool> chunked_complete_; // Ключ — client_fd, зн
      */
     struct ConnectionInfo
     {
-        int backend_fd;      ///< Дескриптор сокета бэкенда
-        SSL *ssl;            ///< Указатель на SSL-объект (nullptr, если нет TLS)
-        bool handshake_done; ///< true, если TLS handshake завершён
-    };
+        int backend_fd;
+        SSL *ssl;
+        bool handshake_done;
+        bool logged_handshake_want; // 👈 Новый флаг
+    }
 
     // 🟢 Карта активных соединений: client_fd → ConnectionInfo
     std::unordered_map<int, ConnectionInfo> connections_; ///< Карта активных соединений
