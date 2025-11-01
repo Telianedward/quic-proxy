@@ -652,19 +652,26 @@ void Http1Server::handle_io_events() noexcept
                     }
                 }
 
-                // 🟢 Закрываем сокеты
-                ::close(client_fd);
-                ::close(info.backend_fd);
+        // 🟢 Сохраняем указатель на SSL перед удалением из карты
+            SSL* ssl_to_free = nullptr;
+            if (is_ssl && info.ssl)
+            {
+                ssl_to_free = info.ssl;
+            }
 
-                // 🟢 Удаляем из карт
-                connections_.erase(client_fd);
-                timeouts_.erase(client_fd);
+            // 🟢 Закрываем сокеты
+            ::close(client_fd);
+            ::close(info.backend_fd);
 
-                // 🟢 Освобождаем SSL-объект
-                if (is_ssl && info.ssl)
-                {
-                    SSL_free(info.ssl);
-                }
+            // 🟢 Удаляем из карт (это удаляет ConnectionInfo, включая ssl)
+            connections_.erase(client_fd);
+            timeouts_.erase(client_fd);
+
+            // 🟢 Освобождаем SSL-объект (только если он был)
+            if (ssl_to_free)
+            {
+                SSL_free(ssl_to_free);
+            }
 
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
@@ -714,19 +721,26 @@ void Http1Server::handle_io_events() noexcept
                     }
                 }
 
-                // 🟢 Закрываем сокеты
-                ::close(client_fd);
-                ::close(info.backend_fd);
+             // 🟢 Сохраняем указатель на SSL перед удалением из карты
+            SSL* ssl_to_free = nullptr;
+            if (is_ssl && info.ssl)
+            {
+                ssl_to_free = info.ssl;
+            }
 
-                // 🟢 Удаляем из карт
-                connections_.erase(client_fd);
-                timeouts_.erase(client_fd);
+            // 🟢 Закрываем сокеты
+            ::close(client_fd);
+            ::close(info.backend_fd);
 
-                // 🟢 Освобождаем SSL-объект
-                if (is_ssl && info.ssl)
-                {
-                    SSL_free(info.ssl);
-                }
+            // 🟢 Удаляем из карт (это удаляет ConnectionInfo, включая ssl)
+            connections_.erase(client_fd);
+            timeouts_.erase(client_fd);
+
+            // 🟢 Освобождаем SSL-объект (только если он был)
+            if (ssl_to_free)
+            {
+                SSL_free(ssl_to_free);
+            }
 
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
