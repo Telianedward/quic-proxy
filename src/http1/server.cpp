@@ -30,6 +30,9 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     OpenSSL_add_all_algorithms();
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
+    // Добавьте это сразу после SSL_CTX_new()
+    SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_VERSION); // Минимум TLS 1.0
+    SSL_CTX_set_max_proto_version(ssl_ctx_, TLS1_3_VERSION); // Максимум TLS 1.3
     if (!ssl_ctx_)
     {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
@@ -710,7 +713,16 @@ bool Http1Server::perform_tls_handshake(int client_fd, ConnectionInfo& info) noe
         {
             // 🟢 Сброс флага при новой попытке handshake
             info.logged_handshake_want = false;
+
+            // 🆕 ДОБАВЛЕННОЕ ЛОГИРОВАНИЕ
+            const char *client_protocol = SSL_get_cipher_name(info.ssl);
+            if (client_protocol) {
+                LOG_ERROR("❌ Клиент пытается использовать шифр: {}", client_protocol);
+            } else {
+                LOG_ERROR("❌ Не удалось определить шифр клиента");
+            }
             LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+
             return false;
         }
     }
