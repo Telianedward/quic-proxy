@@ -262,11 +262,6 @@ void Http1Server::stop()
     running_ = false;
 }
 
-bool Http1Server::is_running() const noexcept
-{
-    return running_;
-}
-
 bool Http1Server::set_nonblocking(int fd) noexcept
 {
     int flags = fcntl(fd, F_GETFL, 0);
