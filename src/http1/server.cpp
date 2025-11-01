@@ -17,7 +17,13 @@
 #include <algorithm>
 #include <sstream>
 #include <poll.h>
-
+struct ConnectionInfo
+{
+    int backend_fd;
+    SSL *ssl;
+    bool handshake_done;
+    bool logged_handshake_want; // 👈 Новый флаг
+};
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
@@ -426,17 +432,16 @@ void Http1Server::handle_new_connection() noexcept
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
         if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
         {
-            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE). Соединение оставлено в connections_ для дальнейшей обработки.");
-            return; // Ждём следующего цикла select()
+            if (!info.logged_handshake_want)
+            {
+                LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+                info.logged_handshake_want = true;
+            }
+            return true;
         }
         else
         {
-            LOG_ERROR(" ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
-            SSL_free(ssl);
-            connections_.erase(client_fd);
-            timeouts_.erase(client_fd);
-            ::close(client_fd);
-            return;
+            info.logged_handshake_want = false; // Сброс при новой попытке
         }
     }
 
@@ -516,7 +521,15 @@ void Http1Server::handle_io_events() noexcept
                         }
                     }
 
-                    LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                    {
+                        // Не логируем каждый раз — только при первом входе в handshake
+                        if (!info.handshake_done)
+                        {
+                            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
+                        }
+                        return true; // Ждём следующего цикла
+                    }
                     continue; // Ждём следующего цикла
                 }
                 else
