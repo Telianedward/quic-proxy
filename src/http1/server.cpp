@@ -432,7 +432,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
                     SSL_free(info.ssl);
                     connections_.erase(client_fd);
                     ::close(client_fd);
-                    remove_epoll_event(client_fd);
+                    if (!remove_epoll_event(client_fd)) {
+    LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
+}
                     return;
                 } else {
                     int ssl_error_after_read = SSL_get_error(info.ssl, bytes_read);
@@ -441,7 +443,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
                         SSL_free(info.ssl);
                         connections_.erase(client_fd);
                         ::close(client_fd);
-                        remove_epoll_event(client_fd);
+                        if (!remove_epoll_event(client_fd)) {
+                                LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                            }
                         return;
                     }
                 }
@@ -452,7 +456,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
                 SSL_free(info.ssl);
                 connections_.erase(client_fd);
                 ::close(client_fd);
-                remove_epoll_event(client_fd);
+                if (!remove_epoll_event(client_fd)) {
+                        LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                    }
                 return;
             }
         }
@@ -534,8 +540,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
             if (is_ssl && info.ssl) {
                 SSL_free(info.ssl);
             }
-            remove_epoll_event(client_fd);
-            LOG_INFO("[INFO] [server.cpp:564] TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+          if (!remove_epoll_event(client_fd)) {
+                LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+            }
         } else {
             timeouts_[client_fd] = time(nullptr);
         }
@@ -578,8 +585,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
             if (is_ssl && info.ssl) {
                 SSL_free(info.ssl);
             }
-            remove_epoll_event(client_fd);
-            LOG_INFO("[INFO] [server.cpp:612] TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+            if (!remove_epoll_event(client_fd)) {
+                LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+            }
         } else {
             // 🟢 ПРОВЕРЯЕМ, ЗАВЕРШЕН ЛИ ЧАНК
             if (chunked_complete_.find(client_fd) != chunked_complete_.end()) {
