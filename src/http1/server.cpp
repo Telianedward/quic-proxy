@@ -187,37 +187,40 @@ bool Http1Server::run()
         }
 
 
-     // Выбираем максимальный дескриптор
+           // Выбираем максимальный дескриптор
         int max_fd = listen_fd_;
         for (const auto &conn : connections_)
         {
             int client_fd = conn.first;
             const ConnectionInfo &info = conn.second;
+
+            // Пропускаем невалидные дескрипторы
             if (client_fd < 0 || info.backend_fd < 0)
             {
                 continue;
             }
+
             max_fd = std::max({max_fd, client_fd, info.backend_fd});
         }
 
         timeval timeout{.tv_sec = 1, .tv_usec = 0}; // Таймаут 1 секунда
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-
-        // Обработка EINTR — сигнал прервал select()
-        if (activity < 0 && errno == EINTR)
-        {
-            LOG_DEBUG("⏸️ select() прерван сигналом. Проверяем флаг running_...");
-            if (!running_) {
-                LOG_INFO("🛑 Получен сигнал остановки. Выход из цикла.");
-                break; // Прерываем основной цикл
-            }
-            continue; // Продолжаем с новым select()
-        }
-
         if (activity < 0 && errno != EINTR)
         {
             LOG_ERROR("Ошибка select: {}", strerror(errno));
             continue;
+        }
+
+        if (activity > 0)
+        {
+            // Обработка новых соединений
+            if (FD_ISSET(listen_fd_, &read_fds))
+            {
+                handle_new_connection();
+            }
+
+            // Обработка данных от клиентов и сервера
+            handle_io_events();
         }
 
     // Проверка таймаутов
@@ -774,16 +777,7 @@ SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
     {
         if (conn.first == fd)
         {
-            // Проверяем, что SSL-объект существует
-            if (conn.second.ssl != nullptr)
-            {
-                return conn.second.ssl;
-            }
-            else
-            {
-                LOG_WARN("⚠️ Найден fd={}, но SSL-объект равен nullptr", fd);
-                return nullptr;
-            }
+            return conn.second.ssl;
         }
     }
     return nullptr;
@@ -821,7 +815,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     bool use_ssl = (ssl != nullptr);
 
     ssize_t bytes_read = 0;
-  if (use_ssl)
+    if (use_ssl)
     {
         LOG_INFO("[READ] 🔐 Попытка чтения через SSL из fd={}", from_fd);
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
@@ -851,7 +845,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         }
         else
         {
-            LOG_INFO("[READ] ✅ Прочитано {} байт через SSL", bytes_read); // 👈 Только здесь!
+            LOG_INFO("[READ] ✅ Прочитано {} байт через SSL", bytes_read);
         }
     }
     else
