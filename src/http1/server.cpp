@@ -24,9 +24,6 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port),
       ssl_ctx_(nullptr), epoll_fd_(-1) {
 
-        running_(true),           // 👈 Сначала running_
-      ssl_ctx_(nullptr),        // 👈 Затем ssl_ctx_
-      epoll_fd_(-1)
     // Инициализация OpenSSL 3.0+
     if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr) != 1) {
         LOG_ERROR("[ERROR] [server.cpp:65] Не удалось инициализировать OpenSSL");
