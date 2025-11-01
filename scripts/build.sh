@@ -95,7 +95,7 @@ mkdir -p build
 cd_or_exit build
 
 # Конфигурируем проект через CMake
-run_and_check "cmake .. -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_CXX_STANDARD=23"
+run_and_check "cmake .. -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_CXX_STANDARD=23 -DVCPKG_TARGET_TRIPLET=x64-linux"
 
 # Собираем проект
 run_and_check "make -j\$(nproc)"

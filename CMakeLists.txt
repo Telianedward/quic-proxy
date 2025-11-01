@@ -30,10 +30,11 @@ add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 # add_compile_options(-Wno-reorder)
 
 # Поиск библиотеки fmt
-find_package(fmt CONFIG REQUIRED COMPONENTS fmt)
+set(CMAKE_TOOLCHAIN_FILE /opt/vcpkg/scripts/buildsystems/vcpkg.cmake)
+find_package(fmt CONFIG REQUIRED)
 
 # Поиск и использование OpenSSL
-find_package(OpenSSL 3.0 REQUIRED COMPONENTS SSL Crypto)
+find_package(OpenSSL 3.0 REQUIRED)
 # Добавляем include-директории OpenSSL
 # target_include_directories(quic_proxy PRIVATE ${OPENSSL_INCLUDE_DIR})
 
