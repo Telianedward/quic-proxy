@@ -382,6 +382,14 @@ void Http1Server::handle_new_connection() noexcept
     LOG_INFO("🟢 Новое соединение от клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
 
+ // 🔒 Проверка лимита соединений
+    if (active_connections_ >= MAX_CONNECTIONS) {
+        LOG_WARN("⚠️ Достигнут лимит соединений ({}). Отказываем новому клиенту.", MAX_CONNECTIONS);
+        ::close(client_fd);
+        return;
+    }
+    active_connections_++; // Увеличиваем счётчик
+
     // 🟢 ОБЪЯВЛЯЕМ backend_fd ВНАЧАЛЕ МЕТОДА
     int backend_fd = -1;
 
@@ -397,14 +405,19 @@ void Http1Server::handle_new_connection() noexcept
     // 🟢 СОЗДАНИЕ SSL-ОБЪЕКТА ДЛЯ TLS-ШИФРОВАНИЯ
     SSL *ssl = SSL_new(ssl_ctx_);
    if (!ssl) {
-    LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
-    ::close(client_fd);
-    return;
-}
+        LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
+        ::close(client_fd);
+        return;
+    }
 
     // 🟠 ПРИВЯЗКА SSL К СОКЕТУ
     SSL_set_fd(ssl, client_fd);
-
+    if (SSL_set_fd(ssl, client_fd) != 1) {
+        LOG_ERROR("❌ Не удалось привязать SSL к сокету");
+        SSL_free(ssl);
+        ::close(client_fd);
+        return;
+    }
     // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА ДЛЯ SSL
     SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
@@ -427,23 +440,24 @@ void Http1Server::handle_new_connection() noexcept
     if (ssl_accept_result <= 0)
     {
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-      if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
+        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
             ssl_error == SSL_ERROR_WANT_CONNECT || ssl_error == SSL_ERROR_WANT_ACCEPT) {
-            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(info.ssl));
+            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(ssl));
             info.logged_handshake_want = true;
-            return; // ✅ Продолжаем цикл
+            return;
         }
         else
         {
-            info.logged_handshake_want = false; // Сброс при новой попытке
+            info.logged_handshake_want = false;
+            LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
+            SSL_free(ssl);
+            ::close(client_fd);
+            return;
         }
     }
 
-    // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
-    LOG_INFO(" ✅ TLS handshake успешно завершён для клиента: {}:{} (fd={})",
-             client_ip_str, client_port_num, client_fd);
-
-    // Обновляем информацию — помечаем handshake как завершённый
+    // 🟢 Только если ssl_accept_result > 0 — handshake действительно завершён
+    LOG_INFO(" ✅ TLS handshake успешно завершён для клиента...");
     info.handshake_done = true;
     connections_[client_fd] = info;
 
@@ -456,6 +470,7 @@ if (SSL_set_fd(ssl, client_fd) != 1) { // Проверка успешности
     return;
 }
 }
+
 /**
  * @brief Обрабатывает события ввода-вывода для всех активных соединений.
  *
@@ -674,6 +689,7 @@ void Http1Server::handle_io_events() noexcept
             }
 
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+                 active_connections_--; // Уменьшаем счётчик при закрытии соединения
             }
             else
             {
@@ -762,6 +778,7 @@ void Http1Server::handle_io_events() noexcept
                             SSL_free(info.ssl);
                         }
                         LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+                         active_connections_--; // Уменьшаем счётчик при закрытии соединения
                     }
                     else
                     {
