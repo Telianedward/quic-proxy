@@ -21,13 +21,11 @@
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
-    : listen_fd_(-1),
-        port_(port),
-        backend_ip_(backend_ip),
-        backend_port_(backend_port),
-        running_(true),
-        ssl_ctx_(nullptr),
-        epoll_fd_(-1) {
+    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port),
+      running_(true),           // 👈 Сначала running_
+      ssl_ctx_(nullptr),        // 👈 Затем ssl_ctx_
+      epoll_fd_(-1)
+      {
 
     // Инициализация OpenSSL 3.0+
     if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr) != 1) {
@@ -601,8 +599,9 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
                     if (is_ssl && info.ssl) {
                         SSL_free(info.ssl);
                     }
-                    remove_epoll_event(client_fd);
-                    LOG_INFO("[INFO] [server.cpp:627] TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+                if (!remove_epoll_event(client_fd)) {
+                    LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                }
                 } else {
                     // 🟡 Чанки ещё не завершены — обновляем таймаут
                     timeouts_[client_fd] = time(nullptr);
