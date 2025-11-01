@@ -168,15 +168,24 @@ bool Http1Server::run()
 
         // Добавляем сокет прослушивания
         FD_SET(listen_fd_, &read_fds);
-
         // Добавляем все активные соединения
         for (const auto &conn : connections_)
         {
             int client_fd = conn.first;
             const ConnectionInfo &info = conn.second;
-            FD_SET(client_fd, &read_fds);
-            FD_SET(info.backend_fd, &read_fds);
+
+            // Проверяем, что дескрипторы валидны
+            if (client_fd >= 0 && info.backend_fd >= 0)
+            {
+                FD_SET(client_fd, &read_fds);
+                FD_SET(info.backend_fd, &read_fds);
+            }
+            else
+            {
+                LOG_WARN("⚠️ Невалидный дескриптор в connections_: client_fd={}, backend_fd={}", client_fd, info.backend_fd);
+            }
         }
+
 
         // Выбираем максимальный дескриптор
         int max_fd = listen_fd_;
