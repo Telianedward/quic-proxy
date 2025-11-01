@@ -393,14 +393,16 @@ void Http1Server::handle_new_connection() noexcept
         return;
     }
 
-    // 🟢 ОСТАВЛЯЕМ ТОЛЬКО ПЕРВЫЙ ВЫЗОВ ПОСЛЕ Создания SSL
+    // 🟢 СОЗДАНИЕ SSL-ОБЪЕКТА ДЛЯ TLS-ШИФРОВАНИЯ
     SSL *ssl = SSL_new(ssl_ctx_);
-    if (!ssl) {
-        LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
-        ::close(client_fd);
-        return;
-    }
-    SSL_set_fd(ssl, client_fd); // 👈 Единственный вызов
+   if (!ssl) {
+    LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
+    ::close(client_fd);
+    return;
+}
+
+    // 🟠 ПРИВЯЗКА SSL К СОКЕТУ
+    SSL_set_fd(ssl, client_fd);
 
     // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА ДЛЯ SSL
     SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
@@ -455,7 +457,12 @@ void Http1Server::handle_new_connection() noexcept
 
     LOG_INFO(" ✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
-
+if (SSL_set_fd(ssl, client_fd) != 1) { // Проверка успешности
+    LOG_ERROR("❌ Не удалось привязать SSL к сокету");
+    SSL_free(ssl); // ✅ Освобождаем SSL
+    ::close(client_fd);
+    return;
+}
 }
 /**
  * @brief Обрабатывает события ввода-вывода для всех активных соединений.
@@ -481,6 +488,7 @@ void Http1Server::handle_io_events() noexcept
         bool is_ssl = info.ssl != nullptr;
 
         // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
+        // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
         if (is_ssl && !info.handshake_done)
         {
             int ssl_accept_result = SSL_accept(info.ssl);
@@ -490,30 +498,63 @@ void Http1Server::handle_io_events() noexcept
                 if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
                     ssl_error == SSL_ERROR_WANT_CONNECT || ssl_error == SSL_ERROR_WANT_ACCEPT) {
                     LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(info.ssl));
+
+                    // 🟢 ПОПЫТКА ПРОЧИТАТЬ ClientHello (если есть данные)
+                    char client_hello[8192];
+                    int bytes_read = SSL_read(info.ssl, client_hello, sizeof(client_hello));
+                    if (bytes_read > 0)
+                    {
+                        // 🟣 ЛОГИРОВАНИЕ ClientHello
+                        LOG_INFO("📋 ClientHello от клиента {}:\n{}", client_fd, std::string(client_hello, bytes_read).substr(0, 512));
+                    }
+                    else if (bytes_read == 0)
+                    {
+                        LOG_WARN("⚠️ Клиент {} закрыл соединение во время handshake", client_fd);
+                        SSL_free(info.ssl);
+                        connections_.erase(client_fd);
+                        ::close(client_fd);
+                        continue;
+                    }
+                    else
+                    {
+                        int ssl_error_after_read = SSL_get_error(info.ssl, bytes_read);
+                        if (ssl_error_after_read != SSL_ERROR_WANT_READ && ssl_error_after_read != SSL_ERROR_WANT_WRITE)
+                        {
+                            LOG_ERROR("❌ Ошибка чтения ClientHello: {}", ERR_error_string(ERR_get_error(), nullptr));
+                            SSL_free(info.ssl);
+                            connections_.erase(client_fd);
+                            ::close(client_fd);
+                            continue;
+                        }
+                    }
+
+                    // 🟢 Не логируем каждый раз — только при первом входе в handshake
                     if (!info.handshake_done && !info.logged_handshake_want)
                     {
                         LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
-                        info.logged_handshake_want = true;
+                        info.logged_handshake_want = true; // 👈 Установка флага
                     }
-                    return; // ✅ Прерываем обработку IO для этого соединения
+                    return; // ✅ Функция void — return без значения
                 }
                 else
                 {
+                    // 🟢 Сброс флага при новой попытке handshake
                     info.logged_handshake_want = false;
+
                     LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
                     SSL_free(info.ssl);
                     connections_.erase(client_fd);
                     ::close(client_fd);
-                    ::close(info.backend_fd);
-                    continue; // Пропускаем остальную обработку
+                    continue;
                 }
             }
+
             // 🟢 HANDSHAKE УСПЕШНО ЗАВЕРШЁН
             LOG_INFO("✅ TLS handshake успешно завершён для клиента: {} (fd={})", client_fd, client_fd);
+
+            // Обновляем информацию — помечаем handshake как завершённый
             ConnectionInfo &mutable_info = connections_[client_fd];
             mutable_info.handshake_done = true;
-            // 🟢 СБРАСЫВАЕМ ФЛАГ — ГОТОВЫ К РАБОТЕ
-            mutable_info.logged_handshake_want = false;
         }
 
           fd_set read_fds, write_fds;
@@ -529,20 +570,11 @@ void Http1Server::handle_io_events() noexcept
             continue; // Пропускаем это соединение
         }
 
-          int max_fd = std::max(client_fd, info.backend_fd); // Без {} — безопаснее для C++23
+        int max_fd = std::max(client_fd, info.backend_fd); // Без {} — безопаснее для C++23
         timeval timeout{.tv_sec = 0, .tv_usec = 1000};     // 1 мс — ускоряем реакцию
-
-        // 🟢 ЗАМЕНЯЕМ БЛОК SELECT В handle_io_events()
-        int activity;
-        do {
-            activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-        } while (activity < 0 && errno == EINTR);
-
-        if (activity < 0) {
-            LOG_ERROR("Ошибка select: {}", strerror(errno));
-            continue;
-        }
-        if (activity <= 0) {
+        int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
+        if (activity <= 0)
+        {
             continue;
         }
 
@@ -950,10 +982,6 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     new_send.data = std::make_unique<char[]>(new_send.len);
     std::memcpy(new_send.data.get(), buffer, new_send.len);
 
-      // 🟢 ДОБАВЛЯЕМ ПРОВЕРКУ НАЛИЧИЯ КЛЮЧА
-    if (pending_sends_.find(to_fd) == pending_sends_.end()) {
-        pending_sends_[to_fd] = std::queue<PendingSend>(); // 👈 Создаём очередь, если её нет
-    }
     // Пытаемся отправить сразу
     LOG_INFO("[NEW] 📤 Попытка немедленной отправки {} байт на fd={}", new_send.len, to_fd);
 
