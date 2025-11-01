@@ -587,59 +587,7 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
 
         // 🟢 ТЕПЕРЬ ЧИТАЕМ НОВЫЕ ДАННЫЕ ОТ КЛИЕНТА
         bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
-        if (!keep_alive)
-        {
-            // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-            if (SSL_is_init_finished(info.ssl))
-            {
-                LOG_DEBUG("[DEBUG] [server.cpp:526] 🔄 Начало SSL_shutdown() для клиента {}", client_fd);
-                int shutdown_result = SSL_shutdown(info.ssl);
-                if (shutdown_result == 1)
-                {
-                    // Успешное завершение
-                    LOG_INFO("[INFO] [server.cpp:530] ✅ SSL_shutdown() успешно завершён (первый этап) для клиента {}", client_fd);
-                }
-                else if (shutdown_result == 0)
-                {
-                    // Требуется второй вызов
-                    LOG_DEBUG("[DEBUG] [server.cpp:534] ⏸️ Требуется второй вызов SSL_shutdown() для клиента {}", client_fd);
-                    int second_shutdown = SSL_shutdown(info.ssl);
-                    if (second_shutdown == 1)
-                    {
-                        LOG_INFO("[INFO] [server.cpp:538] ✅ SSL_shutdown() успешно завершён (второй этап) для клиента {}", client_fd);
-                    }
-                    else
-                    {
-                        LOG_WARN("[WARN] [server.cpp:541] ⚠️ Второй SSL_shutdown() не удался для клиента {}: {}", client_fd, ERR_error_string(ERR_get_error(), nullptr));
-                    }
-                }
-                else
-                {
-                    // Ошибка
-                    int shutdown_error = SSL_get_error(info.ssl, shutdown_result);
-                    LOG_ERROR("[ERROR] [server.cpp:547] ❌ SSL_shutdown() ошибка: {} (код={})", ERR_error_string(shutdown_error, nullptr), shutdown_error);
-                }
-            }
-            else
-            {
-                LOG_DEBUG("[DEBUG] [server.cpp:552] ⏸️ SSL не готов к shutdown - пропускаем");
-            }
-            // 🟢 Закрываем сокеты
-            ::close(client_fd);
-            ::close(info.backend_fd);
-            connections_.erase(client_fd);
-            timeouts_.erase(client_fd);
-            if (is_ssl && info.ssl) {
-                ssl_connections_.erase(client_fd);// 👈 Освобождаем SSL-объект
-            }
-            if (!remove_epoll_event(client_fd)) {
-                LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
-            }
-        }
-        else
-        {
-            timeouts_[client_fd] = time(nullptr);
-        }
+        а
     }
 
     // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ БЭКЕНДА К КЛИЕНТУ
