@@ -41,6 +41,7 @@ find_package(OpenSSL 3.0 REQUIRED)
 # === Источники ===
 add_executable(quic_proxy
     main.cpp
+    # include/logger/logger.h
     # src/http2/tcp_proxy.cpp
     # src/http3/quic_udp_proxy.cpp
     # src/http3/client_key.cpp
@@ -48,7 +49,12 @@ add_executable(quic_proxy
     src/http1/server.cpp  # 👈 ДОБАВЛЕНО: файл HTTP/1.1 сервера
     src/http2/server.cpp  # 👈 ДОБАВЛЕНО: файл HTTP/2 сервера
 )
-
+# Необязательно: добавить заголовки для IDE/документации
+target_sources(quic_proxy PRIVATE
+    include/logger/logger.h
+    include/http1/server.hpp
+    include/http2/server.hpp
+)
 # Линковка: pthread и fmt
 target_link_libraries(quic_proxy PRIVATE
     # PkgConfig::NGHTTP2
