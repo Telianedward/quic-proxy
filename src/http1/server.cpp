@@ -30,14 +30,18 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     OpenSSL_add_all_algorithms();
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
-    // Добавьте это сразу после SSL_CTX_new()
-    SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_VERSION); // Минимум TLS 1.0
-    SSL_CTX_set_max_proto_version(ssl_ctx_, TLS1_3_VERSION); // Максимум TLS 1.3
     if (!ssl_ctx_)
     {
         LOG_ERROR("❌ Не удалось создать SSL-контекст");
         return;
     }
+
+    // 🛠️ Явно разрешаем TLS 1.2 и TLS 1.3
+    SSL_CTX_set_min_proto_version(ssl_ctx_, TLS1_2_VERSION);
+    SSL_CTX_set_max_proto_version(ssl_ctx_, TLS1_3_VERSION);
+
+    LOG_INFO("✅ SSL-контекст успешно создан и настроен для TLS 1.2/1.3");
+
     // 🟢 ИСПОЛЬЗУЕМ ПОДГОТОВЛЕННЫЕ ФАЙЛЫ ИЗ /opt/quic-proxy/
     const char *cert_path = "/opt/quic-proxy/fullchain.pem";
     const char *key_path = "/opt/quic-proxy/privkey.pk8";
