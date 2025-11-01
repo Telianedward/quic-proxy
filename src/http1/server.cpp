@@ -1,3 +1,4 @@
+
 /**
  * @file server.cpp
  * @brief Реализация HTTP/1.1 сервера.
@@ -184,7 +185,7 @@ bool Http1Server::run()
             }
         }
 
-        // Выбираем максимальный дескриптор
+      // Выбираем максимальный дескриптор
         int max_fd = listen_fd_;
         LOG_DEBUG("🔍 Текущие дескрипторы: listen_fd={}, max_fd={}", listen_fd_, max_fd);
         for (const auto &conn : connections_)
@@ -195,9 +196,14 @@ bool Http1Server::run()
         }
 
         timeval timeout{.tv_sec = 1, .tv_usec = 0}; // Таймаут 1 секунда
-        int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
-        if (activity < 0 && errno != EINTR)
-        {
+
+        // 🛡️ ИСПРАВЛЕНИЕ: Обработка EINTR для select
+        int activity;
+        do {
+            activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
+        } while (activity < 0 && errno == EINTR);
+
+        if (activity < 0) {
             LOG_ERROR("Ошибка select: {}", strerror(errno));
             continue;
         }
@@ -390,12 +396,11 @@ void Http1Server::handle_new_connection() noexcept
 
     // 🟢 СОЗДАНИЕ SSL-ОБЪЕКТА ДЛЯ TLS-ШИФРОВАНИЯ
     SSL *ssl = SSL_new(ssl_ctx_);
-    if (!ssl)
-    {
-        LOG_ERROR(" ❌ Не удалось создать SSL-объект для клиента");
-        ::close(client_fd);
-        return;
-    }
+   if (!ssl) {
+    LOG_ERROR("❌ Не удалось создать SSL-объект для клиента");
+    ::close(client_fd);
+    return;
+}
 
     // 🟠 ПРИВЯЗКА SSL К СОКЕТУ
     SSL_set_fd(ssl, client_fd);
@@ -422,14 +427,11 @@ void Http1Server::handle_new_connection() noexcept
     if (ssl_accept_result <= 0)
     {
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-        {
-            if (!info.logged_handshake_want)
-            {
-                LOG_DEBUG("⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
-                info.logged_handshake_want = true;
-            }
-            return true;
+      if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
+            ssl_error == SSL_ERROR_WANT_CONNECT || ssl_error == SSL_ERROR_WANT_ACCEPT) {
+            LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(info.ssl));
+            info.logged_handshake_want = true;
+            return; // ✅ Продолжаем цикл
         }
         else
         {
@@ -447,6 +449,12 @@ void Http1Server::handle_new_connection() noexcept
 
     LOG_INFO(" ✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})",
              client_ip_str, client_port_num, client_fd);
+if (SSL_set_fd(ssl, client_fd) != 1) { // Проверка успешности
+    LOG_ERROR("❌ Не удалось привязать SSL к сокету");
+    SSL_free(ssl); // ✅ Освобождаем SSL
+    ::close(client_fd);
+    return;
+}
 }
 /**
  * @brief Обрабатывает события ввода-вывода для всех активных соединений.
@@ -466,7 +474,7 @@ void Http1Server::handle_io_events() noexcept
     for (const auto &conn : connections_copy)
     {
         int client_fd = conn.first;               // Дескриптор клиента
-        const ConnectionInfo &info = conn.second; // Информация о соединении
+        ConnectionInfo &info = conn.second;  // Информация о соединении
 
         // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
         bool is_ssl = info.ssl != nullptr;
@@ -479,10 +487,9 @@ void Http1Server::handle_io_events() noexcept
             if (ssl_accept_result <= 0)
             {
                 int ssl_error = SSL_get_error(info.ssl, ssl_accept_result);
-                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
-                {
-                    // 🟡 ЛОГИРОВАНИЕ ТЕКУЩЕГО СОСТОЯНИЯ SSL
-                    LOG_DEBUG("🔒 SSL state: {}", SSL_state_string_long(info.ssl));
+                if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
+                    ssl_error == SSL_ERROR_WANT_CONNECT || ssl_error == SSL_ERROR_WANT_ACCEPT) {
+                    LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(info.ssl));
 
                     // 🟢 ПОПЫТКА ПРОЧИТАТЬ ClientHello (если есть данные)
                     char client_hello[8192];
@@ -542,13 +549,21 @@ void Http1Server::handle_io_events() noexcept
             mutable_info.handshake_done = true;
         }
 
-        fd_set read_fds, write_fds;
+          fd_set read_fds, write_fds;
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
         FD_SET(client_fd, &read_fds);
-        FD_SET(info.backend_fd, &read_fds);                  // 👈 Используем info.backend_fd
-        int max_fd = std::max({client_fd, info.backend_fd}); // 👈 std::max с initializer list
-        timeval timeout{.tv_sec = 0, .tv_usec = 1000};       // 1 мс — ускоряем реакцию
+        FD_SET(info.backend_fd, &read_fds);
+
+        // 🛡️ ПРОВЕРКА ВАЛИДНОСТИ ДЕСКРИПТОРОВ ПЕРЕД ВЫЧИСЛЕНИЕМ max_fd
+        if (client_fd < 0 || info.backend_fd < 0) {
+            LOG_WARN("⚠️ Невалидный дескриптор при обработке IO: client_fd={}, backend_fd={}",
+                     client_fd, info.backend_fd);
+            continue; // Пропускаем это соединение
+        }
+
+        int max_fd = std::max(client_fd, info.backend_fd); // Без {} — безопаснее для C++23
+        timeval timeout{.tv_sec = 0, .tv_usec = 1000};     // 1 мс — ускоряем реакцию
         int activity = select(max_fd + 1, &read_fds, &write_fds, nullptr, &timeout);
         if (activity <= 0)
         {
@@ -803,7 +818,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
             {
                 LOG_WARN("[READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
-                return true;
+               return;
             }
             else if (ssl_error == SSL_ERROR_ZERO_RETURN)
             {
@@ -907,7 +922,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                     {
                         LOG_WARN("[PENDING] ⏳ SSL_write требует повторной попытки — оставляем в очереди");
-                        return true; // Оставляем в очереди
+                        return; // Оставляем в очереди
                     }
                     else
                     {
@@ -983,7 +998,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             {
                 LOG_WARN("[NEW] ⏳ SSL_write требует повторной попытки — добавляем в очередь");
                 pending_sends_[to_fd].push(std::move(new_send));
-                return true;
+                return;
             }
             else
             {
