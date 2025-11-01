@@ -33,6 +33,21 @@
 #include <openssl/err.h>
 #include <memory>
 #include <queue>
+   // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
+    /**
+     * @brief Структура для хранения информации о соединении.
+     * @details Содержит:
+     *          - backend_fd: дескриптор сокета бэкенда.
+     *          - ssl: указатель на SSL-объект (nullptr, если нет TLS).
+     *          - handshake_done: true, если TLS handshake завершён.
+     */
+    struct ConnectionInfo
+    {
+        int backend_fd;
+        SSL *ssl;
+        bool handshake_done;
+        bool logged_handshake_want; // 👈 Новый флаг
+    };
 /**
  * @brief Класс HTTP/1.1 сервера.
  *
@@ -99,20 +114,7 @@ std::unordered_map<int, bool> chunked_complete_; // Ключ — client_fd, зн
     SSL_CTX *ssl_ctx_;                               ///< SSL-контекст для TLS
     std::unordered_map<int, SSL *> ssl_connections_; ///< Карта: client_fd → SSL*
 
-    // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
-    /**
-     * @brief Структура для хранения информации о соединении.
-     * @details Содержит:
-     *          - backend_fd: дескриптор сокета бэкенда.
-     *          - ssl: указатель на SSL-объект (nullptr, если нет TLS).
-     *          - handshake_done: true, если TLS handshake завершён.
-     */
-    struct ConnectionInfo
-    {
-        int backend_fd;      ///< Дескриптор сокета бэкенда
-        SSL *ssl;            ///< Указатель на SSL-объект (nullptr, если нет TLS)
-        bool handshake_done; ///< true, если TLS handshake завершён
-    };
+
 
     // 🟢 Карта активных соединений: client_fd → ConnectionInfo
     std::unordered_map<int, ConnectionInfo> connections_; ///< Карта активных соединений
