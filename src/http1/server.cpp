@@ -470,11 +470,11 @@ void Http1Server::handle_io_events() noexcept
     // Создаём копию карты соединений — чтобы избежать модификации во время итерации
     auto connections_copy = connections_;
 
-    // Итерируем по копии
-    for (const auto &conn : connections_copy)
+      // Итерируем по копии — используем неконстантную ссылку
+    for (auto &conn : connections_copy)
     {
         int client_fd = conn.first;               // Дескриптор клиента
-        ConnectionInfo &info = conn.second;  // Информация о соединении
+        ConnectionInfo &info = conn.second;       // Информация о соединении — теперь можно изменять
 
         // 🟡 ПРОВЕРКА: ЭТО SSL-СОЕДИНЕНИЕ?
         bool is_ssl = info.ssl != nullptr;
@@ -817,8 +817,8 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             int ssl_error = SSL_get_error(ssl, bytes_read);
             if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
             {
-                LOG_WARN("[READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
-               return;
+                    LOG_WARN("[READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
+                return true; // ✅ Возвращаем true — соединение активно, нужно повторить
             }
             else if (ssl_error == SSL_ERROR_ZERO_RETURN)
             {
@@ -922,7 +922,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
                     if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
                     {
                         LOG_WARN("[PENDING] ⏳ SSL_write требует повторной попытки — оставляем в очереди");
-                        return; // Оставляем в очереди
+                        return true; // ✅ Соединение активно, нужно повторить
                     }
                     else
                     {
@@ -998,7 +998,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
             {
                 LOG_WARN("[NEW] ⏳ SSL_write требует повторной попытки — добавляем в очередь");
                 pending_sends_[to_fd].push(std::move(new_send));
-                return;
+                return true; // ✅ Соединение активно, нужно повторить
             }
             else
             {
