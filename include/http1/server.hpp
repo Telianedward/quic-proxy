@@ -47,7 +47,7 @@
         SSL *ssl;
         bool handshake_done;
         bool logged_handshake_want; // 👈 Новый флаг
-    }
+    };
 /**
  * @brief Класс HTTP/1.1 сервера.
  *
