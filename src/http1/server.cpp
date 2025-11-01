@@ -22,13 +22,14 @@
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
     : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port),
-      running_(true),           // 👈 Сначала running_
-      ssl_ctx_(nullptr),        // 👈 Затем ssl_ctx_
+      running_(true),    // 👈 Сначала running_
+      ssl_ctx_(nullptr), // 👈 Затем ssl_ctx_
       epoll_fd_(-1)
-      {
+{
 
     // Инициализация OpenSSL 3.0+
-    if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr) != 1) {
+    if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr) != 1)
+    {
         LOG_ERROR("[ERROR] [server.cpp:65] Не удалось инициализировать OpenSSL");
         return;
     }
@@ -36,7 +37,8 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
 
     // Создание SSL-контекста
     ssl_ctx_ = SSL_CTX_new(TLS_server_method());
-    if (!ssl_ctx_) {
+    if (!ssl_ctx_)
+    {
         LOG_ERROR("[ERROR] [server.cpp:75] ❌ Не удалось создать SSL-контекст");
         return;
     }
@@ -46,13 +48,15 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     const char *key_path = "/opt/quic-proxy/privkey.pk8";
 
     // 🟡 ПРОВЕРКА СУЩЕСТВОВАНИЯ ФАЙЛОВ
-    if (access(cert_path, R_OK) != 0) {
+    if (access(cert_path, R_OK) != 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:85] ❌ Сертификат не найден или недоступен: {}", cert_path);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (access(key_path, R_OK) != 0) {
+    if (access(key_path, R_OK) != 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:90] ❌ Приватный ключ не найден или недоступен: {}", key_path);
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -60,20 +64,23 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     }
 
     // Загрузка сертификата и ключа
-    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ssl_ctx_, cert_path, SSL_FILETYPE_PEM) <= 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:97] ❌ Не удалось загрузить сертификат: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx_, key_path, SSL_FILETYPE_PEM) <= 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:102] ❌ Не удалось загрузить приватный ключ: {}", ERR_error_string(ERR_get_error(), nullptr));
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
         return;
     }
     // Проверка соответствия ключа и сертификата
-    if (!SSL_CTX_check_private_key(ssl_ctx_)) {
+    if (!SSL_CTX_check_private_key(ssl_ctx_))
+    {
         LOG_ERROR("[ERROR] [server.cpp:108] ❌ Ключ и сертификат не совпадают");
         SSL_CTX_free(ssl_ctx_);
         ssl_ctx_ = nullptr;
@@ -82,20 +89,24 @@ Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_po
     LOG_INFO("[INFO] [server.cpp:113] ✅ SSL-контекст успешно создан и настроен");
 }
 
-Http1Server::~Http1Server() {
+Http1Server::~Http1Server()
+{
     // Закрываем epoll
-    if (epoll_fd_ != -1) {
+    if (epoll_fd_ != -1)
+    {
         ::close(epoll_fd_);
         epoll_fd_ = -1;
     }
 
     // Очистка всех SSL-соединений
-    for (auto &[fd, ssl] : ssl_connections_) {
+    for (auto &[fd, ssl] : ssl_connections_)
+    {
         SSL_free(ssl);
     }
     ssl_connections_.clear();
 
-    if (ssl_ctx_) {
+    if (ssl_ctx_)
+    {
         SSL_CTX_set_max_send_fragment(ssl_ctx_, 16384); // 16KB фрагменты
         SSL_CTX_set_read_ahead(ssl_ctx_, 1);            // Включить read-ahead
         SSL_CTX_free(ssl_ctx_);
@@ -103,42 +114,49 @@ Http1Server::~Http1Server() {
     }
 
     // Закрываем все соединения
-    for (const auto &conn : connections_) {
+    for (const auto &conn : connections_)
+    {
         int client_fd = conn.first;
         const ConnectionInfo &info = conn.second;
         ::close(client_fd);
         ::close(info.backend_fd);
     }
     connections_.clear();
-    if (listen_fd_ != -1) {
+    if (listen_fd_ != -1)
+    {
         ::close(listen_fd_);
     }
     LOG_INFO("[INFO] [server.cpp:146] HTTP/1.1 сервер остановлен.");
 }
 
-bool Http1Server::run() {
+bool Http1Server::run()
+{
     // Создаем сокет для прослушивания
     listen_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listen_fd_ < 0) {
+    if (listen_fd_ < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:156] Не удалось создать сокет для прослушивания: {}", strerror(errno));
         return false;
     }
 
     // Устанавливаем опции
     int opt = 1;
-    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:163] setsockopt SO_REUSEADDR failed: {}", strerror(errno));
         ::close(listen_fd_);
         return false;
     }
-    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+    if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:168] setsockopt SO_REUSEPORT failed: {}", strerror(errno));
         ::close(listen_fd_);
         return false;
     }
 
     // Устанавливаем неблокирующий режим
-    if (!set_nonblocking(listen_fd_)) {
+    if (!set_nonblocking(listen_fd_))
+    {
         LOG_ERROR("[ERROR] [server.cpp:175] Не удалось установить неблокирующий режим для сокета прослушивания");
         ::close(listen_fd_);
         return false;
@@ -149,14 +167,16 @@ bool Http1Server::run() {
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port_);
-    if (bind(listen_fd_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(listen_fd_, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:185] Не удалось привязать сокет к порту {}: {}", port_, strerror(errno));
         ::close(listen_fd_);
         return false;
     }
 
     // Начинаем прослушивать
-    if (listen(listen_fd_, SOMAXCONN) < 0) {
+    if (listen(listen_fd_, SOMAXCONN) < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:191] Не удалось начать прослушивание: {}", strerror(errno));
         ::close(listen_fd_);
         return false;
@@ -164,14 +184,16 @@ bool Http1Server::run() {
 
     // Создаем epoll
     epoll_fd_ = epoll_create1(0);
-    if (epoll_fd_ == -1) {
+    if (epoll_fd_ == -1)
+    {
         LOG_ERROR("[ERROR] [server.cpp:198] Не удалось создать epoll: {}", strerror(errno));
         ::close(listen_fd_);
         return false;
     }
 
     // Регистрируем listen_fd в epoll
-    if (!add_epoll_event(listen_fd_, EPOLLIN)) {
+    if (!add_epoll_event(listen_fd_, EPOLLIN))
+    {
         LOG_ERROR("[ERROR] [server.cpp:204] Не удалось добавить listen_fd в epoll");
         ::close(listen_fd_);
         ::close(epoll_fd_);
@@ -181,26 +203,33 @@ bool Http1Server::run() {
     LOG_INFO("[INFO] [server.cpp:209] HTTP/1.1 сервер запущен на порту {} с использованием epoll", port_);
 
     // Главный цикл
-    while (running_.load()) {
+    while (running_.load())
+    {
         struct epoll_event events[64];
         int nfds = epoll_wait(epoll_fd_, events, 64, 1000); // Таймаут 1 секунда
 
-        if (nfds == -1) {
-            if (errno == EINTR) {
+        if (nfds == -1)
+        {
+            if (errno == EINTR)
+            {
                 continue; // Прерван сигналом
             }
             LOG_ERROR("[ERROR] [server.cpp:220] Ошибка epoll_wait: {}", strerror(errno));
             continue;
         }
 
-        for (int i = 0; i < nfds; ++i) {
+        for (int i = 0; i < nfds; ++i)
+        {
             int fd = events[i].data.fd;
             uint32_t events_mask = events[i].events;
 
-            if (fd == listen_fd_) {
+            if (fd == listen_fd_)
+            {
                 // Новое соединение
                 handle_new_connection();
-            } else {
+            }
+            else
+            {
                 // Обработка данных от клиента или бэкенда
                 handle_io_events(fd, events_mask);
             }
@@ -208,14 +237,18 @@ bool Http1Server::run() {
 
         // Проверка таймаутов
         time_t now = time(nullptr);
-        for (auto it = timeouts_.begin(); it != timeouts_.end();) {
-            if (now - it->second > 60) { // Таймаут 60 секунд
+        for (auto it = timeouts_.begin(); it != timeouts_.end();)
+        {
+            if (now - it->second > 60)
+            { // Таймаут 60 секунд
                 int client_fd = it->first;
                 ::close(client_fd);
                 connections_.erase(client_fd);
                 timeouts_.erase(it++);
                 LOG_INFO("[INFO] [server.cpp:244] TCP-соединение закрыто по таймауту: клиент {}", client_fd);
-            } else {
+            }
+            else
+            {
                 ++it;
             }
         }
@@ -224,27 +257,33 @@ bool Http1Server::run() {
     return true;
 }
 
-void Http1Server::stop() {
+void Http1Server::stop()
+{
     running_.store(false);
 }
 
-bool Http1Server::set_nonblocking(int fd) noexcept {
+bool Http1Server::set_nonblocking(int fd) noexcept
+{
     int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
+    if (flags == -1)
+    {
         return false;
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
 
-int Http1Server::connect_to_backend() noexcept {
+int Http1Server::connect_to_backend() noexcept
+{
     int backend_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (backend_fd < 0) {
+    if (backend_fd < 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:267] Не удалось создать сокет для подключения к серверу в России: {}", strerror(errno));
         return -1;
     }
 
     // Устанавливаем неблокирующий режим
-    if (!set_nonblocking(backend_fd)) {
+    if (!set_nonblocking(backend_fd))
+    {
         LOG_ERROR("[ERROR] [server.cpp:273] Не удалось установить неблокирующий режим для сокета сервера");
         ::close(backend_fd);
         return -1;
@@ -254,15 +293,18 @@ int Http1Server::connect_to_backend() noexcept {
     struct sockaddr_in backend_addr{};
     backend_addr.sin_family = AF_INET;
     backend_addr.sin_port = htons(backend_port_);
-    if (inet_pton(AF_INET, backend_ip_.c_str(), &backend_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, backend_ip_.c_str(), &backend_addr.sin_addr) <= 0)
+    {
         LOG_ERROR("[ERROR] [server.cpp:282] Не удалось преобразовать IP-адрес сервера: {}", backend_ip_);
         ::close(backend_fd);
         return -1;
     }
 
     // Подключаемся к серверу
-    if (connect(backend_fd, (struct sockaddr *)&backend_addr, sizeof(backend_addr)) < 0) {
-        if (errno != EINPROGRESS) {
+    if (connect(backend_fd, (struct sockaddr *)&backend_addr, sizeof(backend_addr)) < 0)
+    {
+        if (errno != EINPROGRESS)
+        {
             LOG_ERROR("[ERROR] [server.cpp:290] Не удалось подключиться к серверу в России: {}", strerror(errno));
             ::close(backend_fd);
             return -1;
@@ -275,7 +317,8 @@ int Http1Server::connect_to_backend() noexcept {
         FD_SET(backend_fd, &write_fds);
         timeval timeout{.tv_sec = 5, .tv_usec = 0}; // Таймаут 5 секунд
         int activity = select(backend_fd + 1, nullptr, &write_fds, nullptr, &timeout);
-        if (activity <= 0) {
+        if (activity <= 0)
+        {
             LOG_ERROR("[ERROR] [server.cpp:302] ❌ Таймаут подключения к бэкенду {}:{} (errno={})", backend_ip_, backend_port_, errno);
             ::close(backend_fd);
             return -1;
@@ -284,38 +327,46 @@ int Http1Server::connect_to_backend() noexcept {
         // Проверяем, успешно ли подключились
         int error = 0;
         socklen_t len = sizeof(error);
-        if (getsockopt(backend_fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
+        if (getsockopt(backend_fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+        {
             LOG_ERROR("[ERROR] [server.cpp:310] ❌ Не удалось получить статус подключения: {}", strerror(errno));
             ::close(backend_fd);
             return -1;
         }
-        if (error != 0) {
+        if (error != 0)
+        {
             LOG_ERROR("[ERROR] [server.cpp:315] ❌ Ошибка подключения к бэкенду {}:{}: {}", backend_ip_, backend_port_, strerror(error));
             ::close(backend_fd);
             return -1;
         }
         LOG_INFO("[INFO] [server.cpp:319] ✅ Подключение к бэкенду {}:{} успешно установлено", backend_ip_, backend_port_);
-    } else {
+    }
+    else
+    {
         LOG_INFO("[INFO] [server.cpp:322] ✅ Подключение к бэкенду {}:{} успешно установлено (мгновенно)", backend_ip_, backend_port_);
     }
     return backend_fd;
 }
 
-void Http1Server::handle_new_connection() noexcept {
+void Http1Server::handle_new_connection() noexcept
+{
     // 🟡 СТРУКТУРА ДЛЯ ХРАНЕНИЯ АДРЕСА КЛИЕНТА
     struct sockaddr_in client_addr{};
     socklen_t client_len = sizeof(client_addr);
     // 🟢 ПРИЕМ НОВОГО СОЕДИНЕНИЯ
     int client_fd = accept(listen_fd_, (struct sockaddr *)&client_addr, &client_len);
-    if (client_fd < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+    if (client_fd < 0)
+    {
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+        {
             LOG_ERROR("[ERROR] [server.cpp:337] ❌ Ошибка accept: {}", strerror(errno));
         }
         return;
     }
 
     // 🟣 УСТАНОВКА НЕБЛОКИРУЮЩЕГО РЕЖИМА
-    if (!set_nonblocking(client_fd)) {
+    if (!set_nonblocking(client_fd))
+    {
         LOG_ERROR("[ERROR] [server.cpp:343] ❌ Не удалось установить неблокирующий режим для клиента");
         ::close(client_fd);
         return;
@@ -330,7 +381,8 @@ void Http1Server::handle_new_connection() noexcept {
     int backend_fd = -1;
     // Подключаемся к серверу в России
     backend_fd = connect_to_backend();
-    if (backend_fd == -1) {
+    if (backend_fd == -1)
+    {
         LOG_ERROR("[ERROR] [server.cpp:357] ❌ Не удалось подключиться к серверу в России. Закрываем соединение с клиентом.");
         ::close(client_fd);
         return;
@@ -338,7 +390,8 @@ void Http1Server::handle_new_connection() noexcept {
 
     // 🟢 СОЗДАНИЕ SSL-ОБЪЕКТА ДЛЯ TLS-ШИФРОВАНИЯ
     SSL *ssl = SSL_new(ssl_ctx_);
-    if (!ssl) {
+    if (!ssl)
+    {
         LOG_ERROR("[ERROR] [server.cpp:364] ❌ Не удалось создать SSL-объект для клиента");
         ::close(client_fd);
         return;
@@ -364,7 +417,8 @@ void Http1Server::handle_new_connection() noexcept {
     timeouts_[client_fd] = time(nullptr);
 
     // 🟢 РЕГИСТРИРУЕМ client_fd В epoll
-    if (!add_epoll_event(client_fd, EPOLLIN)) {
+    if (!add_epoll_event(client_fd, EPOLLIN))
+    {
         LOG_ERROR("[ERROR] [server.cpp:387] ❌ Не удалось добавить client_fd в epoll");
         SSL_free(ssl);
         connections_.erase(client_fd);
@@ -375,12 +429,16 @@ void Http1Server::handle_new_connection() noexcept {
 
     // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
     int ssl_accept_result = SSL_accept(ssl);
-    if (ssl_accept_result <= 0) {
+    if (ssl_accept_result <= 0)
+    {
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+        {
             LOG_DEBUG("[DEBUG] [server.cpp:397] ⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE). Соединение оставлено в connections_ для дальнейшей обработки.");
             return; // Ждём следующего цикла epoll
-        } else {
+        }
+        else
+        {
             LOG_ERROR("[ERROR] [server.cpp:401] ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
             SSL_free(ssl);
             connections_.erase(client_fd);
@@ -398,9 +456,11 @@ void Http1Server::handle_new_connection() noexcept {
     LOG_INFO("[INFO] [server.cpp:414] ✅ TLS-соединение успешно установлено для клиента: {}:{} (fd={})", client_ip_str, client_port_num, client_fd);
 }
 
-void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
+void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
+{
     auto it = connections_.find(fd);
-    if (it == connections_.end()) {
+    if (it == connections_.end())
+    {
         LOG_WARN("[WARN] [server.cpp:423] ⚠️ Неизвестный fd={} в connections_", fd);
         return;
     }
@@ -412,50 +472,64 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
     bool is_ssl = info.ssl != nullptr;
 
     // 🟠 ЕСЛИ HANDSHAKE НЕ ЗАВЕРШЁН — ПОПЫТКА ЗАВЕРШИТЬ ЕГО
-    if (is_ssl && !info.handshake_done) {
+    if (is_ssl && !info.handshake_done)
+    {
         int ssl_accept_result = SSL_accept(info.ssl);
-        if (ssl_accept_result <= 0) {
+        if (ssl_accept_result <= 0)
+        {
             int ssl_error = SSL_get_error(info.ssl, ssl_accept_result);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 // 🟡 ЛОГИРОВАНИЕ ТЕКУЩЕГО СОСТОЯНИЯ SSL
                 LOG_DEBUG("[DEBUG] [server.cpp:439] 🔒 SSL state: {}", SSL_state_string_long(info.ssl));
                 // 🟢 ПОПЫТКА ПРОЧИТАТЬ ClientHello (если есть данные)
                 char client_hello[8192];
                 int bytes_read = SSL_read(info.ssl, client_hello, sizeof(client_hello));
-                if (bytes_read > 0) {
+                if (bytes_read > 0)
+                {
                     // 🟣 ЛОГИРОВАНИЕ ClientHello
                     LOG_INFO("[INFO] [server.cpp:445] 📋 ClientHello от клиента {}:\n{}", client_fd, std::string(client_hello, bytes_read).substr(0, 512));
-                } else if (bytes_read == 0) {
+                }
+                else if (bytes_read == 0)
+                {
                     LOG_WARN("[WARN] [server.cpp:449] ⚠️ Клиент {} закрыл соединение во время handshake", client_fd);
-                    SSL_free(info.ssl);
+                    ssl_connections_.erase(client_fd);
                     ::close(client_fd);
-                    if (!remove_epoll_event(client_fd)) {
-    LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
-}
+                    if (!remove_epoll_event(client_fd))
+                    {
+                        LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                    }
                     return;
-                } else {
+                }
+                else
+                {
                     int ssl_error_after_read = SSL_get_error(info.ssl, bytes_read);
-                    if (ssl_error_after_read != SSL_ERROR_WANT_READ && ssl_error_after_read != SSL_ERROR_WANT_WRITE) {
+                    if (ssl_error_after_read != SSL_ERROR_WANT_READ && ssl_error_after_read != SSL_ERROR_WANT_WRITE)
+                    {
                         LOG_ERROR("[ERROR] [server.cpp:456] ❌ Ошибка чтения ClientHello: {}", ERR_error_string(ERR_get_error(), nullptr));
-                        SSL_free(info.ssl);
+                        ssl_connections_.erase(client_fd);
                         connections_.erase(client_fd);
                         ::close(client_fd);
-                        if (!remove_epoll_event(client_fd)) {
-                                LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
-                            }
+                        if (!remove_epoll_event(client_fd))
+                        {
+                            LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                        }
                         return;
                     }
                 }
                 LOG_DEBUG("[DEBUG] [server.cpp:462] ⏸️ TLS handshake требует повторной попытки (SSL_ERROR_WANT_READ/WRITE)");
                 return; // Ждём следующего цикла
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:467] ❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
-                SSL_free(info.ssl);
+                ssl_connections_.erase(client_fd);
                 connections_.erase(client_fd);
                 ::close(client_fd);
-                if (!remove_epoll_event(client_fd)) {
-                        LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
-                    }
+                if (!remove_epoll_event(client_fd))
+                {
+                    LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                }
                 return;
             }
         }
@@ -466,25 +540,33 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
     }
 
     // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
-    if (events_mask & EPOLLIN) {
+    if (events_mask & EPOLLIN)
+    {
         LOG_INFO("[INFO] [server.cpp:484] 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
         LOG_DEBUG("[DEBUG] [server.cpp:485] 🔄 Начало обработки данных через forward_data: from_fd={}, to_fd={}", client_fd, info.backend_fd);
 
         // 🟢 СНАЧАЛА ПРОВЕРЯЕМ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ ДЛЯ БЭКЕНДА
-        if (!pending_sends_.empty() && pending_sends_.find(info.backend_fd) != pending_sends_.end() && !pending_sends_[info.backend_fd].empty()) {
+        if (!pending_sends_.empty() && pending_sends_.find(info.backend_fd) != pending_sends_.end() && !pending_sends_[info.backend_fd].empty())
+        {
             auto &pending_queue = pending_sends_[info.backend_fd];
-            while (!pending_queue.empty()) {
+            while (!pending_queue.empty())
+            {
                 auto &pending = pending_queue.front();
-                if (pending.fd != info.backend_fd) {
+                if (pending.fd != info.backend_fd)
+                {
                     pending_queue.pop();
                     continue;
                 }
                 ssize_t bytes_sent = send(pending.fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
-                if (bytes_sent <= 0) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (bytes_sent <= 0)
+                {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
                         LOG_WARN("[WARN] [server.cpp:500] ⏸️ Буфер отправки на бэкенд заполнен");
                         break; // Оставляем в очереди
-                    } else {
+                    }
+                    else
+                    {
                         LOG_ERROR("[ERROR] [server.cpp:504] ❌ send() ошибка при отправке на бэкенд: {}", strerror(errno));
                         pending_queue.pop();
                         break;
@@ -492,9 +574,12 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
                 }
                 pending.sent += bytes_sent;
                 LOG_DEBUG("[DEBUG] [server.cpp:510] 📈 Отправлено {} байт на бэкенд, всего {}/{}", bytes_sent, pending.sent, pending.len);
-                if (pending.sent >= pending.len) {
+                if (pending.sent >= pending.len)
+                {
                     pending_queue.pop(); // Успешно отправили всю порцию
-                } else {
+                }
+                else
+                {
                     break; // Остались неотправленные данные
                 }
             }
@@ -563,28 +648,38 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
     }
 
     // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ БЭКЕНДА К КЛИЕНТУ
-    if (events_mask & EPOLLIN) {
+    if (events_mask & EPOLLIN)
+    {
         LOG_INFO("[INFO] [server.cpp:573] 📤 Получены данные от сервера {}", info.backend_fd);
         // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
-        if (info.ssl != nullptr && !info.handshake_done) {
+        if (info.ssl != nullptr && !info.handshake_done)
+        {
             LOG_WARN("[WARN] [server.cpp:577] ❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
             return; // Пропускаем эту итерацию, ждём завершения handshake
         }
         // 🟢 Передаём данные
         bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
-        if (!keep_alive) {
+        if (!keep_alive)
+        {
             // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-            if (is_ssl && info.ssl) {
+            if (is_ssl && info.ssl)
+            {
                 // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
                 int shutdown_state = SSL_get_shutdown(info.ssl);
-                if (shutdown_state & SSL_RECEIVED_SHUTDOWN) {
+                if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+                {
                     LOG_DEBUG("[DEBUG] [server.cpp:590] 🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
-                } else {
+                }
+                else
+                {
                     LOG_DEBUG("[DEBUG] [server.cpp:593] 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
                     int shutdown_result = SSL_shutdown(info.ssl);
-                    if (shutdown_result < 0) {
+                    if (shutdown_result < 0)
+                    {
                         LOG_WARN("[WARN] [server.cpp:597] ⚠️ SSL_shutdown() вернул ошибку: {}", ERR_error_string(ERR_get_error(), nullptr));
-                    } else {
+                    }
+                    else
+                    {
                         LOG_INFO("[INFO] [server.cpp:600] ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
                     }
                 }
@@ -596,33 +691,45 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
             connections_.erase(client_fd);
             timeouts_.erase(client_fd);
             // 🟢 Освобождаем SSL-объект
-            if (is_ssl && info.ssl) {
+            if (is_ssl && info.ssl)
+            {
                 SSL_free(info.ssl);
             }
-            if (!remove_epoll_event(client_fd)) {
+            if (!remove_epoll_event(client_fd))
+            {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
-        } else {
+        }
+        else
+        {
             // 🟢 ПРОВЕРЯЕМ, ЗАВЕРШЕН ЛИ ЧАНК
-            if (chunked_complete_.find(client_fd) != chunked_complete_.end()) {
-                if (chunked_complete_[client_fd]) {
+            if (chunked_complete_.find(client_fd) != chunked_complete_.end())
+            {
+                if (chunked_complete_[client_fd])
+                {
                     // 🟢 Чанки завершены — можно закрыть соединение
                     LOG_INFO("[INFO] [server.cpp:620] ✅ Все чанки отправлены. Закрываем соединение для клиента {}", client_fd);
                     ::close(client_fd);
                     ::close(info.backend_fd);
                     connections_.erase(client_fd);
                     timeouts_.erase(client_fd);
-                    if (is_ssl && info.ssl) {
-                        SSL_free(info.ssl);
+                    if (is_ssl && info.ssl)
+                    {
+                        SSL_free(info.ssl); // 👈 Освобождаем SSL-объект
                     }
-                if (!remove_epoll_event(client_fd)) {
-                    LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                    if (!remove_epoll_event(client_fd))
+                    {
+                        LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
+                    }
                 }
-                } else {
+                else
+                {
                     // 🟡 Чанки ещё не завершены — обновляем таймаут
                     timeouts_[client_fd] = time(nullptr);
                 }
-            } else {
+            }
+            else
+            {
                 // 🟡 Неизвестное состояние — обновляем таймаут
                 timeouts_[client_fd] = time(nullptr);
             }
@@ -630,13 +737,19 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept {
     }
 }
 
-SSL *Http1Server::get_ssl_for_fd(int fd) noexcept {
-    for (const auto &conn : connections_) {
-        if (conn.first == fd) {
+SSL *Http1Server::get_ssl_for_fd(int fd) noexcept
+{
+    for (const auto &conn : connections_)
+    {
+        if (conn.first == fd)
+        {
             // Проверяем, что SSL-объект существует
-            if (conn.second.ssl != nullptr) {
+            if (conn.second.ssl != nullptr)
+            {
                 return conn.second.ssl;
-            } else {
+            }
+            else
+            {
                 LOG_WARN("[WARN] [server.cpp:648] ⚠️ Найден fd={}, но SSL-объект равен nullptr", fd);
                 return nullptr;
             }
@@ -645,7 +758,8 @@ SSL *Http1Server::get_ssl_for_fd(int fd) noexcept {
     return nullptr;
 }
 
-bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
+bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
+{
     LOG_DEBUG("[DEBUG] [server.cpp:657] 🔄 Начало forward_data(from_fd={}, to_fd={}, ssl={})", from_fd, to_fd, ssl ? "true" : "false");
 
     // 🟡 ЧТЕНИЕ ДАННЫХ
@@ -653,62 +767,93 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
     bool use_ssl = (ssl != nullptr);
     ssize_t bytes_read = 0;
 
-    if (use_ssl) {
+    if (use_ssl)
+    {
         LOG_INFO("[INFO] [server.cpp:665] [READ] 🔐 Попытка чтения через SSL из fd={}", from_fd);
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
-        if (bytes_read < 0) {
+        if (bytes_read < 0)
+        {
             int ssl_error = SSL_get_error(ssl, bytes_read);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 LOG_WARN("[WARN] [server.cpp:671] [READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
                 return true;
-            } else if (ssl_error == SSL_ERROR_ZERO_RETURN) {
+            }
+            else if (ssl_error == SSL_ERROR_ZERO_RETURN)
+            {
                 LOG_INFO("[INFO] [server.cpp:675] [READ] ✅ Клиент корректно закрыл соединение (SSL_ERROR_ZERO_RETURN)");
                 return false;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:679] [READ] ❌ Фатальная ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
                 return false;
             }
-        } else if (bytes_read == 0) {
+        }
+        else if (bytes_read == 0)
+        {
             LOG_WARN("[WARN] [server.cpp:684] [READ] ⚠️ SSL_read вернул 0 — возможно, соединение закрыто.");
             return false;
-        } else {
+        }
+        else
+        {
             LOG_INFO("[INFO] [server.cpp:688] [READ] ✅ Прочитано {} байт через SSL", bytes_read);
         }
-    } else {
+    }
+    else
+    {
         LOG_INFO("[INFO] [server.cpp:692] [READ] 📥 Попытка чтения через recv из fd={}", from_fd);
         bytes_read = recv(from_fd, buffer, sizeof(buffer), 0);
-        if (bytes_read < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (bytes_read < 0)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
                 LOG_WARN("[WARN] [server.cpp:697] [READ] ⏳ recv() вернул EAGAIN/EWOULDBLOCK — буфер пуст");
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:701] [READ] ❌ recv ошибка: {} (errno={})", strerror(errno), errno);
                 return false;
             }
-        } else if (bytes_read == 0) {
+        }
+        else if (bytes_read == 0)
+        {
             LOG_WARN("[WARN] [server.cpp:706] [READ] ⚠️ recv вернул 0 — соединение закрыто.");
             return false;
-        } else {
+        }
+        else
+        {
             LOG_INFO("[INFO] [server.cpp:710] [READ] ✅ Прочитано {} байт через recv", bytes_read);
         }
     }
 
-    if (bytes_read <= 0) {
+    if (bytes_read <= 0)
+    {
         LOG_DEBUG("[DEBUG] [server.cpp:715] [READ] 🛑 Обработка ошибки чтения или закрытия соединения");
-        if (use_ssl) {
+        if (use_ssl)
+        {
             int ssl_error = SSL_get_error(ssl, bytes_read);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 LOG_WARN("[WARN] [server.cpp:720] [READ] ⏳ SSL_ERROR_WANT_READ/WRITE — повторная попытка позже");
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:724] [READ] ❌ Фатальная ошибка SSL: {}", ERR_error_string(ERR_get_error(), nullptr));
                 return false;
             }
-        } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
                 LOG_WARN("[WARN] [server.cpp:729] [READ] ⏳ recv() вернул EAGAIN/EWOULDBLOCK — буфер пуст");
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:733] [READ] ❌ Фатальная ошибка recv(): {}", strerror(errno));
                 return false;
             }
@@ -722,12 +867,15 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
     LOG_DEBUG("[DEBUG] [server.cpp:743] [WRITE] 🎯 Целевой fd={} имеет SSL? {}", to_fd, target_ssl ? "да" : "нет");
 
     // 🟢 ПРОВЕРКА: ЕСТЬ ЛИ НЕЗАВЕРШЁННЫЕ ОТПРАВКИ?
-    if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty()) {
+    if (!pending_sends_.empty() && pending_sends_.find(to_fd) != pending_sends_.end() && !pending_sends_[to_fd].empty())
+    {
         LOG_INFO("[INFO] [server.cpp:748] [PENDING] 🕒 Есть незавершённые отправки для fd={}", to_fd);
         auto &pending_queue = pending_sends_[to_fd];
-        while (!pending_queue.empty()) {
+        while (!pending_queue.empty())
+        {
             auto &pending = pending_queue.front();
-            if (pending.fd != to_fd) {
+            if (pending.fd != to_fd)
+            {
                 LOG_WARN("[WARN] [server.cpp:753] [PENDING] 🗑️ Некорректный fd в очереди — пропускаем элемент");
                 pending_queue.pop();
                 continue;
@@ -735,29 +883,42 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
             // 🟠 ПОПЫТКА ОТПРАВИТЬ ОСТАВШИЕСЯ ДАННЫЕ
             LOG_DEBUG("[DEBUG] [server.cpp:758] [PENDING] 📤 Отправка оставшихся {} байт из {} (уже отправлено {})", pending.len - pending.sent, pending.len, pending.sent);
             ssize_t bytes_sent = 0;
-            if (target_ssl != nullptr) {
+            if (target_ssl != nullptr)
+            {
                 LOG_INFO("[INFO] [server.cpp:762] [PENDING] 🔐 SSL_write для fd={}", to_fd);
                 bytes_sent = SSL_write(target_ssl, pending.data.get() + pending.sent, pending.len - pending.sent);
-            } else {
+            }
+            else
+            {
                 LOG_INFO("[INFO] [server.cpp:766] [PENDING] 📤 send() для fd={}", to_fd);
                 bytes_sent = send(to_fd, pending.data.get() + pending.sent, pending.len - pending.sent, MSG_NOSIGNAL);
             }
-            if (bytes_sent <= 0) {
-                if (target_ssl != nullptr) {
+            if (bytes_sent <= 0)
+            {
+                if (target_ssl != nullptr)
+                {
                     int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                    if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+                    {
                         LOG_WARN("[WARN] [server.cpp:773] [PENDING] ⏳ SSL_write требует повторной попытки — оставляем в очереди");
                         return true; // Оставляем в очереди
-                    } else {
+                    }
+                    else
+                    {
                         LOG_ERROR("[ERROR] [server.cpp:777] [PENDING] ❌ SSL_write фатальная ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                         pending_queue.pop(); // Удаляем из очереди при фатальной ошибке
                         return false;
                     }
-                } else {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                }
+                else
+                {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
                         LOG_WARN("[WARN] [server.cpp:783] [PENDING] ⏳ send() вернул EAGAIN/EWOULDBLOCK — буфер заполнен");
                         return true;
-                    } else {
+                    }
+                    else
+                    {
                         LOG_ERROR("[ERROR] [server.cpp:787] [PENDING] ❌ send() фатальная ошибка: {}", strerror(errno));
                         pending_queue.pop();
                         return false;
@@ -766,10 +927,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
             }
             pending.sent += static_cast<size_t>(bytes_sent);
             LOG_DEBUG("[DEBUG] [server.cpp:793] [PENDING] 📈 Отправлено {} байт, всего {}/{}", bytes_sent, pending.sent, pending.len);
-            if (pending.sent >= pending.len) {
+            if (pending.sent >= pending.len)
+            {
                 LOG_SUCCESS("[SUCCESS] [server.cpp:796] ✅ Полностью отправлена порция данных ({} байт)", pending.len);
                 pending_queue.pop(); // Успешно отправили всю порцию
-            } else {
+            }
+            else
+            {
                 LOG_INFO("[INFO] [server.cpp:800] [PENDING] 📥 Остались неотправленные данные: {} байт", pending.len - pending.sent);
                 return true; // Остались неотправленные данные
             }
@@ -788,31 +952,44 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
     // Пытаемся отправить сразу
     LOG_INFO("[INFO] [server.cpp:815] [NEW] 📤 Попытка немедленной отправки {} байт на fd={}", new_send.len, to_fd);
     ssize_t bytes_sent = 0;
-    if (target_ssl != nullptr) {
+    if (target_ssl != nullptr)
+    {
         LOG_INFO("[INFO] [server.cpp:819] [NEW] 🔐 SSL_write для нового блока на fd={}", to_fd);
         bytes_sent = SSL_write(target_ssl, new_send.data.get(), new_send.len);
-    } else {
+    }
+    else
+    {
         LOG_INFO("[INFO] [server.cpp:823] [NEW] 📤 send() для нового блока на fd={}", to_fd);
         bytes_sent = send(to_fd, new_send.data.get(), new_send.len, MSG_NOSIGNAL);
     }
 
-    if (bytes_sent <= 0) {
-        if (target_ssl != nullptr) {
+    if (bytes_sent <= 0)
+    {
+        if (target_ssl != nullptr)
+        {
             int ssl_error = SSL_get_error(target_ssl, bytes_sent);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE)
+            {
                 LOG_WARN("[WARN] [server.cpp:830] [NEW] ⏳ SSL_write требует повторной попытки — добавляем в очередь");
                 pending_sends_[to_fd].push(std::move(new_send));
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:834] [NEW] ❌ SSL_write фатальная ошибка: {}", ERR_error_string(ERR_get_error(), nullptr));
                 return false;
             }
-        } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        }
+        else
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
                 LOG_WARN("[WARN] [server.cpp:839] [NEW] ⏳ send() вернул EAGAIN/EWOULDBLOCK — буфер заполнен");
                 pending_sends_[to_fd].push(std::move(new_send));
                 return true;
-            } else {
+            }
+            else
+            {
                 LOG_ERROR("[ERROR] [server.cpp:843] [NEW] ❌ send() фатальная ошибка: {}", strerror(errno));
                 return false;
             }
@@ -825,11 +1002,13 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept {
     return true;
 }
 
-bool Http1Server::add_epoll_event(int fd, uint32_t events) noexcept {
+bool Http1Server::add_epoll_event(int fd, uint32_t events) noexcept
+{
     struct epoll_event ev;
     ev.events = events;
     ev.data.fd = fd;
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) == -1) {
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) == -1)
+    {
         LOG_ERROR("[ERROR] [server.cpp:859] ❌ Не удалось добавить fd={} в epoll: {}", fd, strerror(errno));
         return false;
     }
