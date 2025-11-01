@@ -587,7 +587,7 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
 
         // 🟢 ТЕПЕРЬ ЧИТАЕМ НОВЫЕ ДАННЫЕ ОТ КЛИЕНТА
         bool keep_alive = forward_data(client_fd, info.backend_fd, info.ssl); // 👈 Передаём ssl
-        if (!keep_alive)
+          if (!keep_alive)
         {
             // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
             if (SSL_is_init_finished(info.ssl))
@@ -639,10 +639,6 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
             {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
-        }
-        else
-        {
-            timeouts_[client_fd] = time(nullptr);
         }
     }
 
