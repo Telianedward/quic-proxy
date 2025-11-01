@@ -639,6 +639,7 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
             {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
+             return;
         }
     }
 
@@ -690,6 +691,7 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
             if (!remove_epoll_event(client_fd)) {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
+             return; // 👈 ДОБАВЛЕНО: выходим из метода
         }
         else
         {
@@ -712,12 +714,14 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
                     {
                         LOG_ERROR("[ERROR] [server.cpp:XXX] ❌ Не удалось удалить fd={} из epoll", client_fd);
                     }
+                     return; // 👈 ДОБАВЛЕНО: выходим из метода
                 }
                 else
                 {
                     // 🟡 Чанки ещё не завершены — обновляем таймаут
                     timeouts_[client_fd] = time(nullptr);
                 }
+                 return; // 👈 ДОБАВЛЕНО: выходим из метода
             }
             else
             {
