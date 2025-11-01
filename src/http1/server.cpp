@@ -627,17 +627,12 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
             // 🟢 Закрываем сокеты
             ::close(client_fd);
             ::close(info.backend_fd);
-            // 🟢 Удаляем из карт
             connections_.erase(client_fd);
             timeouts_.erase(client_fd);
-            // 🟢 Освобождаем SSL-объект
-            if (is_ssl && info.ssl)
-            {
-                SSL_free(info.ssl);
-                ssl_connections_.erase(client_fd); // 👈 ДОБАВЛЕНО: удаляем из карты
+            if (is_ssl && info.ssl) {
+                ssl_connections_.erase(client_fd);// 👈 Освобождаем SSL-объект
             }
-            if (!remove_epoll_event(client_fd))
-            {
+            if (!remove_epoll_event(client_fd)) {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
         }
@@ -687,16 +682,12 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
             // 🟢 Закрываем сокеты
             ::close(client_fd);
             ::close(info.backend_fd);
-            // 🟢 Удаляем из карт
             connections_.erase(client_fd);
             timeouts_.erase(client_fd);
-            // 🟢 Освобождаем SSL-объект
-            if (is_ssl && info.ssl)
-            {
-                SSL_free(info.ssl);
+            if (is_ssl && info.ssl) {
+               ssl_connections_.erase(client_fd);// 👈 Освобождаем SSL-объект
             }
-            if (!remove_epoll_event(client_fd))
-            {
+            if (!remove_epoll_event(client_fd)) {
                 LOG_ERROR("[ERROR] [server.cpp:435] ❌ Не удалось удалить fd={} из epoll", client_fd);
             }
         }
@@ -715,7 +706,7 @@ void Http1Server::handle_io_events(int fd, uint32_t events_mask) noexcept
                     timeouts_.erase(client_fd);
                     if (is_ssl && info.ssl)
                     {
-                        SSL_free(info.ssl); // 👈 Освобождаем SSL-объект
+                        ssl_connections_.erase(client_fd); // 👈 Освобождаем SSL-объект
                     }
                     if (!remove_epoll_event(client_fd))
                     {
