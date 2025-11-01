@@ -28,7 +28,7 @@
 #include <cerrno>
 #include <sys/epoll.h>
 #include <thread>
-#include "../logger/logger.hpp"
+#include "logger/logger.hpp"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <memory>
