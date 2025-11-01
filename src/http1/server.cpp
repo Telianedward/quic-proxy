@@ -21,8 +21,13 @@
 // === Реализация методов класса Http1Server ===
 
 Http1Server::Http1Server(int port, const std::string &backend_ip, int backend_port)
-    : listen_fd_(-1), port_(port), backend_ip_(backend_ip), backend_port_(backend_port),
-      ssl_ctx_(nullptr), epoll_fd_(-1) {
+    : listen_fd_(-1),
+        port_(port),
+        backend_ip_(backend_ip),
+        backend_port_(backend_port),
+        running_(true),
+        ssl_ctx_(nullptr),
+        epoll_fd_(-1) {
 
     // Инициализация OpenSSL 3.0+
     if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_CONFIG, nullptr) != 1) {
