@@ -423,11 +423,10 @@ void Http1Server::handle_new_connection() noexcept
 
     // 🟢 ЗАПУСКАЕМ TLS HANDSHAKE
     int ssl_accept_result = SSL_accept(ssl);
-  // 🟢 ДОБАВЛЯЕМ ОСВОБОЖДЕНИЕ SSL ПРИ ФАТАЛЬНОЙ ОШИБКЕ HANDSHAKE
     if (ssl_accept_result <= 0)
     {
         int ssl_error = SSL_get_error(ssl, ssl_accept_result);
-        if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
+      if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE ||
             ssl_error == SSL_ERROR_WANT_CONNECT || ssl_error == SSL_ERROR_WANT_ACCEPT) {
             LOG_DEBUG("⏸️ TLS handshake требует повторной попытки ({}).", SSL_state_string_long(info.ssl));
             info.logged_handshake_want = true;
@@ -436,14 +435,6 @@ void Http1Server::handle_new_connection() noexcept
         else
         {
             info.logged_handshake_want = false; // Сброс при новой попытке
-            LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
-            // 🛑 ДОБАВЛЯЕМ ОСВОБОЖДЕНИЕ SSL И ЗАКРЫТИЕ СОКЕТОВ
-            SSL_free(ssl); // 👈 Освобождаем SSL-объект
-            ::close(client_fd);
-            ::close(backend_fd); // 👈 Закрываем backend_fd
-            connections_.erase(client_fd); // 👈 Удаляем из карты
-            timeouts_.erase(client_fd);
-            return; // ❗ Выходим, чтобы не продолжать с невалидными данными
         }
     }
 
