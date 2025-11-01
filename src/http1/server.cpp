@@ -698,6 +698,10 @@ void Http1Server::close_connection(int client_fd, ConnectionInfo& info) noexcept
 
 bool Http1Server::perform_tls_handshake(int client_fd, ConnectionInfo& info) noexcept
 {
+    // Проверяем, был ли уже запущен handshake
+    if (info.handshake_done)
+        return true;
+
     int ssl_accept_result = SSL_accept(info.ssl);
     if (ssl_accept_result <= 0)
     {
@@ -717,7 +721,6 @@ bool Http1Server::perform_tls_handshake(int client_fd, ConnectionInfo& info) noe
         {
             // 🟢 Сброс флага при новой попытке handshake
             info.logged_handshake_want = false;
-
             // 🆕 ДОБАВЛЕННОЕ ЛОГИРОВАНИЕ
             const char *client_protocol = SSL_get_cipher_name(info.ssl);
             if (client_protocol) {
@@ -726,7 +729,6 @@ bool Http1Server::perform_tls_handshake(int client_fd, ConnectionInfo& info) noe
                 LOG_ERROR("❌ Не удалось определить шифр клиента");
             }
             LOG_ERROR("❌ TLS handshake не удался: {}", ERR_error_string(ERR_get_error(), nullptr));
-
             return false;
         }
     }
