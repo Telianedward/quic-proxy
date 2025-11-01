@@ -557,7 +557,7 @@ void Http1Server::handle_io_events() noexcept
             continue;
         }
 
-             // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
+        // 🟢 ПЕРЕДАЧА ДАННЫХ ОТ КЛИЕНТА К СЕРВЕРУ
         if (FD_ISSET(client_fd, &read_fds))
         {
             LOG_INFO(" 📥 Получены данные от клиента {} (fd={})", client_fd, client_fd);
@@ -617,26 +617,45 @@ void Http1Server::handle_io_events() noexcept
             if (!keep_alive)
             {
                 // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-                if (is_ssl && info.ssl)
+                  // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
+                if (SSL_is_init_finished(info.ssl))
                 {
-                    // 🟢 ПРОВЕРЯЕМ, ГОТОВ ЛИ SSL К SHUTDOWN
-                    if (SSL_is_init_finished(info.ssl))
+                    LOG_DEBUG("🔄 Начало SSL_shutdown() для клиента {}", client_fd);
+
+                    int shutdown_result = SSL_shutdown(info.ssl);
+                    if (shutdown_result == 1)
                     {
-                        LOG_DEBUG("🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                        int shutdown_result = SSL_shutdown(info.ssl);
-                        if (shutdown_result < 0)
+                        // Успешное завершение
+                        LOG_INFO("✅ SSL_shutdown() успешно завершён (первый этап) для клиента {}", client_fd);
+                    }
+                    else if (shutdown_result == 0)
+                    {
+                        // Требуется второй вызов
+                        LOG_DEBUG("⏸️ Требуется второй вызов SSL_shutdown() для клиента {}", client_fd);
+                        // Можно попробовать второй вызов немедленно, но лучше ждать ответа от клиента
+                        // Для простоты делаем второй вызов сразу
+                        int second_shutdown = SSL_shutdown(info.ssl);
+                        if (second_shutdown == 1)
                         {
-                            int ssl_error = SSL_get_error(info.ssl, shutdown_result);
-                            if (ssl_error != SSL_ERROR_SYSCALL && ssl_error != SSL_ERROR_SSL)
-                            {
-                                LOG_DEBUG("⚠️ SSL_shutdown() в процессе: {}", ssl_error);
-                            }
+                            LOG_INFO("✅ SSL_shutdown() успешно завершён (второй этап) для клиента {}", client_fd);
+                        }
+                        else
+                        {
+                            LOG_WARN("⚠️ Второй SSL_shutdown() не удался для клиента {}: {}",
+                                     client_fd, ERR_error_string(ERR_get_error(), nullptr));
                         }
                     }
                     else
                     {
-                        LOG_DEBUG("⏸️ SSL не готов к shutdown - пропускаем");
+                        // Ошибка
+                        int ssl_error = SSL_get_error(info.ssl, shutdown_result);
+                        LOG_ERROR("❌ SSL_shutdown() ошибка: {} (errno={})",
+                                  ERR_error_string(ERR_get_error(), nullptr), errno);
                     }
+                }
+                else
+                {
+                    LOG_DEBUG("⏸️ SSL не готов к shutdown - пропускаем");
                 }
 
                 // 🟢 Закрываем сокеты
@@ -660,95 +679,95 @@ void Http1Server::handle_io_events() noexcept
                 timeouts_[client_fd] = time(nullptr);
             }
         }
-       if (FD_ISSET(info.backend_fd, &read_fds))
-{
-    LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
-
-    // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
-    if (info.ssl != nullptr && !info.handshake_done)
-    {
-        LOG_WARN("❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
-        continue; // Пропускаем эту итерацию, ждём завершения handshake
-    }
-
-    // 🟢 Передаём данные
-    bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
-
-    if (!keep_alive)
-    {
-        // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
-        if (is_ssl && info.ssl)
+        if (FD_ISSET(info.backend_fd, &read_fds))
         {
-            // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
-            int shutdown_state = SSL_get_shutdown(info.ssl);
-            if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+            LOG_INFO("📤 Получены данные от сервера {}", info.backend_fd);
+
+            // 🔴 ПРОВЕРКА: ЗАВЕРШЁН ЛИ HANDSHAKE?
+            if (info.ssl != nullptr && !info.handshake_done)
             {
-                LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                LOG_WARN("❗ Нельзя отправлять данные клиенту, пока handshake не завершён. Пропускаем.");
+                continue; // Пропускаем эту итерацию, ждём завершения handshake
             }
-            else
+
+            // 🟢 Передаём данные
+            bool keep_alive = forward_data(info.backend_fd, client_fd, nullptr); // 👈 Передаём nullptr, так как данные от бэкенда не шифруются
+
+            if (!keep_alive)
             {
-                LOG_DEBUG(" 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
-                int shutdown_result = SSL_shutdown(info.ssl);
-                if (shutdown_result < 0)
+                // 🟢 Если клиент уже закрыл соединение — не вызываем SSL_shutdown()
+                if (is_ssl && info.ssl)
                 {
-                    LOG_WARN(" ⚠️ SSL_shutdown() вернул ошибку: {}",
-                             ERR_error_string(ERR_get_error(), nullptr));
+                    // 🟢 Проверяем, был ли уже вызван SSL_shutdown()
+                    int shutdown_state = SSL_get_shutdown(info.ssl);
+                    if (shutdown_state & SSL_RECEIVED_SHUTDOWN)
+                    {
+                        LOG_DEBUG("🟡 Клиент уже закрыл соединение. SSL_shutdown() не требуется.");
+                    }
+                    else
+                    {
+                        LOG_DEBUG(" 🔄 Вызов SSL_shutdown() для клиента {}", client_fd);
+                        int shutdown_result = SSL_shutdown(info.ssl);
+                        if (shutdown_result < 0)
+                        {
+                            LOG_WARN(" ⚠️ SSL_shutdown() вернул ошибку: {}",
+                                     ERR_error_string(ERR_get_error(), nullptr));
+                        }
+                        else
+                        {
+                            LOG_INFO(" ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
+                        }
+                    }
                 }
-                else
-                {
-                    LOG_INFO(" ✅ SSL_shutdown() успешно завершён для клиента {}", client_fd);
-                }
-            }
-        }
 
-        // 🟢 Закрываем сокеты
-        ::close(client_fd);
-        ::close(info.backend_fd);
-
-        // 🟢 Удаляем из карт
-        connections_.erase(client_fd);
-        timeouts_.erase(client_fd);
-
-        // 🟢 Освобождаем SSL-объект
-        if (is_ssl && info.ssl)
-        {
-            SSL_free(info.ssl);
-        }
-
-        LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
-    }
-    else
-    {
-        // 🟢 ПРОВЕРЯЕМ, ЗАВЕРШЕН ЛИ ЧАНК
-        if (chunked_complete_.find(client_fd) != chunked_complete_.end())
-        {
-            if (chunked_complete_[client_fd])
-            {
-                // 🟢 Чанки завершены — можно закрыть соединение
-                LOG_INFO("✅ Все чанки отправлены. Закрываем соединение для клиента {}", client_fd);
+                // 🟢 Закрываем сокеты
                 ::close(client_fd);
                 ::close(info.backend_fd);
+
+                // 🟢 Удаляем из карт
                 connections_.erase(client_fd);
                 timeouts_.erase(client_fd);
+
+                // 🟢 Освобождаем SSL-объект
                 if (is_ssl && info.ssl)
                 {
                     SSL_free(info.ssl);
                 }
+
                 LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
             }
             else
             {
-                // 🟡 Чанки ещё не завершены — обновляем таймаут
-                timeouts_[client_fd] = time(nullptr);
+                // 🟢 ПРОВЕРЯЕМ, ЗАВЕРШЕН ЛИ ЧАНК
+                if (chunked_complete_.find(client_fd) != chunked_complete_.end())
+                {
+                    if (chunked_complete_[client_fd])
+                    {
+                        // 🟢 Чанки завершены — можно закрыть соединение
+                        LOG_INFO("✅ Все чанки отправлены. Закрываем соединение для клиента {}", client_fd);
+                        ::close(client_fd);
+                        ::close(info.backend_fd);
+                        connections_.erase(client_fd);
+                        timeouts_.erase(client_fd);
+                        if (is_ssl && info.ssl)
+                        {
+                            SSL_free(info.ssl);
+                        }
+                        LOG_INFO("TCP-соединение закрыто: клиент {}, бэкенд {}", client_fd, info.backend_fd);
+                    }
+                    else
+                    {
+                        // 🟡 Чанки ещё не завершены — обновляем таймаут
+                        timeouts_[client_fd] = time(nullptr);
+                    }
+                }
+                else
+                {
+                    // 🟡 Неизвестное состояние — обновляем таймаут
+                    timeouts_[client_fd] = time(nullptr);
+                }
             }
         }
-        else
-        {
-            // 🟡 Неизвестное состояние — обновляем таймаут
-            timeouts_[client_fd] = time(nullptr);
-        }
-    }
-}
     }
 }
 
