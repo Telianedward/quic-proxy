@@ -824,7 +824,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
     bool use_ssl = (ssl != nullptr);
 
     ssize_t bytes_read = 0;
-    if (use_ssl)
+  if (use_ssl)
     {
         LOG_INFO("[READ] 🔐 Попытка чтения через SSL из fd={}", from_fd);
         bytes_read = SSL_read(ssl, buffer, sizeof(buffer));
@@ -854,7 +854,7 @@ bool Http1Server::forward_data(int from_fd, int to_fd, SSL *ssl) noexcept
         }
         else
         {
-            LOG_INFO("[READ] ✅ Прочитано {} байт через SSL", bytes_read);
+            LOG_INFO("[READ] ✅ Прочитано {} байт через SSL", bytes_read); // 👈 Только здесь!
         }
     }
     else
