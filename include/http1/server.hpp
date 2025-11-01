@@ -96,10 +96,11 @@ private:
     std::string backend_ip_;              ///< IP сервера в России
     int backend_port_;                    ///< Порт сервера в России
     std::atomic<bool> running_{true};     ///< Флаг работы сервера (атомарный)
+        SSL_CTX *ssl_ctx_;                               ///< SSL-контекст для TLS
     int epoll_fd_;                        ///< Дескриптор epoll
 
     // 🟡 ЗАТЕМ — SSL-ПОЛЯ
-    SSL_CTX *ssl_ctx_;                               ///< SSL-контекст для TLS
+
     std::unordered_map<int, SSL *> ssl_connections_; ///< Карта: client_fd → SSL*
 
     // 🟠 ЗАТЕМ — КАРТЫ СОЕДИНЕНИЙ
